@@ -1,2 +1,3 @@
 ./build.sh
-rm *.class
+java -jar PharmacyManagementSystem.jar
+./clean.sh
