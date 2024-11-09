@@ -1,7 +1,7 @@
-name: CI
+name: CI-Release-Main
 
 on:
-  pull_request:
+  push:
     branches: [ "main" ]
   workflow_dispatch:
 
@@ -41,10 +41,9 @@ jobs:
             "
       # TODO: Add tests here
 
-      # Step 5: Upload build artifacts
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v3
+      # Step 5: Deploy Jar file to releases
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          overwrite: true
-          name: PharmacyManagementSystem
-          path: "*.jar"
+          tag_name: main-release
+          files: "*.jar"
