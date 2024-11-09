@@ -1,4 +1,6 @@
-Fixes issue #
+Issue fixed #
 
 ## Proposed Changes
 -
+
+## About
