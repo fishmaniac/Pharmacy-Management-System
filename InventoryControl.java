@@ -4,15 +4,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.time.LocalDate;
 
-// enum OrderItemType {
-//     EN_Prescription,
-// }
-//
-// enum ItemType {
-//     EN_LaysChips,
-//     EN_Tylenol,
-//     EN_Morphine,
-// }
 
 public class InventoryControl {
     // TODO: Make private
@@ -70,7 +61,7 @@ public class InventoryControl {
 		LocalDate.now()
 		// .plusWeeks(1) // Delivery time here
 		);
-	System.out.println("New unique order: " + new_order);
+	System.out.println("Update New unique order: " + new_order);
 	addOrder(new_order);
     }
 
