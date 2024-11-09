@@ -1,4 +1,5 @@
 # Pharmacy-Management-System
+[![CI-Release-Main](https://github.com/fishmaniac/Pharmacy-Management-System/actions/workflows/build-docker-release.yml/badge.svg)](https://github.com/fishmaniac/Pharmacy-Management-System/actions/workflows/build-docker-release.yml)
 
 ## Steps to Run
 ### Windows
