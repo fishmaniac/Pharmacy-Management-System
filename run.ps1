@@ -1,3 +1,3 @@
-build.ps1
+.\build.ps1
 java -jar PharmacyManagementSystem.jar
-clean.ps1
+.\clean.ps1
