@@ -61,7 +61,7 @@ public class InventoryControl {
 		LocalDate.now()
 		// .plusWeeks(1) // Delivery time here
 		);
-	System.out.println("New unique order: " + new_order);
+	System.out.println("Update New unique order: " + new_order);
 	addOrder(new_order);
     }
 
