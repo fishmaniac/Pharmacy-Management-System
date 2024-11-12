@@ -1,9 +1,6 @@
 # Pharmacy-Management-System
 [![CI-Release-Main](https://github.com/fishmaniac/Pharmacy-Management-System/actions/workflows/build-docker-release.yml/badge.svg)](https://github.com/fishmaniac/Pharmacy-Management-System/actions/workflows/build-docker-release.yml)
-<<<<<<< HEAD
 [![Javadoc](https://img.shields.io/badge/JavaDoc-Online-green)](https://fishmaniac.github.io/Pharmacy-Management-System/)
-=======
->>>>>>> 47ec3e7 (Update README.md)
 
 ## Steps to Run
 ### Windows
