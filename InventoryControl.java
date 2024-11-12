@@ -4,15 +4,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.time.LocalDate;
 
-// enum OrderItemType {
-//     EN_Prescription,
-// }
-//
-// enum ItemType {
-//     EN_LaysChips,
-//     EN_Tylenol,
-//     EN_Morphine,
-// }
 
 public class InventoryControl {
     // TODO: Make private
