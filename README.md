@@ -20,3 +20,4 @@
 6. `git add .` or `git add . -p` or `git add {YOUR_FILENAME}`
 7. `git commit -m "{YOUR_MESSAGE}"` or `git commit` (Add your message in the first line of the file)
 8. `git push`
+9. Go to github repo and press `Compare Pull Request`
