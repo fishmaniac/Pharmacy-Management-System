@@ -21,3 +21,14 @@
 7. `git commit -m "{YOUR_MESSAGE}"` or `git commit` (Add your message in the first line of the file)
 8. `git push`
 9. Go to github repo and press `Compare Pull Request`
+
+Using Visual Studios
+1. Look at main and see any changes
+2. pull main and make sure up to date
+3. Checkout to and select main
+4. refresh or select pull to double check main is up to date
+5. Create new branch titled what is being changed
+6. MAKE CHANGES IN VISUAL STUDIOS
+7. Commit all
+8. push all 
+9. go to github and finish
