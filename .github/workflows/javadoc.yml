@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write  # if you have a protection rule on your repository, you'll need to give write permission to the workflow.
+      deployments: write
     steps:
       # Step 1: Delete old deployments
       - name: Delete Old Deployment
