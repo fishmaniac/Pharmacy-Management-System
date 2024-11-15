@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -17,6 +18,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           javadoc-branch: javadoc
           java-version: 21
+          javadoc-source-folder: docs
           target-folder: javadoc
           project: maven
           custom-command: javadoc -d docs -sourcepath . -subpackages PharmacyManagementSystem -windowtitle "Pharmacy Management System" -doctitle "Pharmacy Management System"
