@@ -1,6 +1,8 @@
 name: Deploy Javadoc
 
 on:
+  pull_request:
+    branches: [ "main" ]
   push:
     branches:
       - main
@@ -19,6 +21,6 @@ jobs:
           javadoc-branch: javadoc
           java-version: 21
           javadoc-source-folder: docs
-          target-folder: javadoc
+          target-folder: docs
           project: maven
           custom-command: javadoc -d docs -sourcepath . -subpackages PharmacyManagementSystem -windowtitle "Pharmacy Management System" -doctitle "Pharmacy Management System"
