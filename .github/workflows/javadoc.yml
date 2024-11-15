@@ -12,6 +12,19 @@ jobs:
     permissions:
       contents: write  # if you have a protection rule on your repository, you'll need to give write permission to the workflow.
     steps:
+      # Step 1: Delete old deployments
+      - name: Delete Old Deployment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -L \
+               -X DELETE \
+               -H "Accept: application/vnd.github+json" \
+               -H "Authorization: Bearer $GITHUB_TOKEN" \
+               -H "X-GitHub-Api-Version: 2022-11-28" \
+              https://api.github.com/repos/fishmaniac/Pharmacy-Management-System/deployments/github-pages
+
+      # Step 2: Deploy JavaDoc to GitHub pages
       - name: Deploy JavaDoc
         uses: MathieuSoysal/Javadoc-publisher.yml@v2.5.0
         with:
