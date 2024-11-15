@@ -1,2 +1,6 @@
+#!/bin/bash
+
+package_name="PharmacyManagementSystem"
+
 rm -rf build/
-rm PharmacyManagementSystem.jar
+rm "${package_name}.jar"

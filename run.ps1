@@ -1,3 +1,5 @@
+$package_name = "PharmacyManagementSystem"
+
 .\build.ps1
-java -jar PharmacyManagementSystem.jar
+java -jar "$package_name.jar"
 .\clean.ps1
