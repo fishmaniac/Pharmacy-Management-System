@@ -83,6 +83,15 @@ public class Backend {
 			account.getFailureAttempts() + 1
 			);
 		// TODO: Lock out account if > 5
+            if(account.getFailureAttempts() > 5){
+                account.setFailureAttempts(true); // lock the account
+                System.out.printIn( "Account has been locked due to many attempts");
+            }else{
+                System.out.printIn("Failed attempts: " + account.getFailureAttempts());
+            }
+            
+
+            }
 	    }
 	}
 	return false;
