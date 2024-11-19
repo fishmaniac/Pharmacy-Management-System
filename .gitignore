@@ -1,3 +1,6 @@
 build/
-PharmacyManagementSystem.jar
 *.class
+
+docs/
+
+PharmacyManagementSystem.jar

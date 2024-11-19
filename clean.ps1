@@ -1,2 +1,4 @@
+$package_name = "PharmacyManagementSystem"
+
 rm -R -Force build\
-rm -Force PharmacyManagementSystem.jar
+rm -Force "$package_name.jar"

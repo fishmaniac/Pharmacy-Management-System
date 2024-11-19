@@ -1,2 +1,6 @@
-javac -d build -g *.java
-jar cfe PharmacyManagementSystem.jar Main -C build/ .
+#!/bin/bash
+
+package_name="PharmacyManagementSystem"
+
+javac -d build -g ${package_name}/*.java
+jar cfe "${package_name}.jar" "${package_name}.Main" -C build/ ${package_name}
