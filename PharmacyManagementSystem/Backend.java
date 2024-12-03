@@ -2,9 +2,33 @@ package PharmacyManagementSystem;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Scanner;
+
 import com.sun.net.httpserver.HttpServer;
+
+enum Request {
+    Login,
+    CreateAccount,
+    CreateDiscount,
+}
+
+enum Response {
+    AccountLocked,
+    AccountCreated,
+    AccountDoesNotExist,
+    FirstLogin,
+    LoginFailed,
+    GetPassword,
+    DiscountCreated,
+}
+
+enum Status {
+    Success,
+    Fail,
+}
 
 /** {@link Backend}
  * 
@@ -12,119 +36,184 @@ import com.sun.net.httpserver.HttpServer;
 public class Backend {
     private HashMap<String, Account> accounts;
     private List<Patient> patients;
+    private Account logging_in;
     private Account logged_in;
 
+    Backend()
+    {
+	this.accounts = new HashMap<String, Account>();
+	this.patients = new ArrayList<Patient>();
+    }
+    //    private boolean checkData(final Request request, Object data) {
+    // switch(request)
+    // {
+    //     case Login:
+    // 	return data instanceof String;
+    //     case CreateAccount:
+    // 	return data instanceof List<?>;
+    //     case CreateDiscount:
+    // 	break;
+    // }
+    //    }
     /**
      * @param request
      * @param data
      */
     // Would be from front end (maybe use CLI input)
-    public void receive(final Request request, final String data)
+    @SuppressWarnings("unchecked")
+    public Response receive(final Request request, Object data)
     {
+	// TODO: Add status code
 	switch(request)
 	{
 	    case Login:
-		login(data);
-		break;
-	    case Password:
-		break;
+		return login((String) data);
 	    case CreateAccount:
-		createAccount(data);
-		break;
+		return createAccount((List<Object>) data);
+	    case CreateDiscount:
+		return createDiscount((List<Object>) data);
 	}
+
+	return null;
     }
     /**
      * @param response
      * @return
      */
-    public String send(final Response response)
+    public boolean send(final Response response, Object data)
     {
+	Account new_account = getLoggingIn();
+	Account account = getLoggedIn();
+
+
 	switch (response)
 	{
-	    case CreatePassword:
-		return "Password123";
+	    case AccountLocked:
+		return false;
+	    case FirstLogin:
+		new_account.setPassword((String) data);
+		new_account.setFirstLogin(false);
+		return true;
 	    case GetPassword:
-		return "WrongPassword";
-	    default:
-		return null;
+		if (new_account.getPassword().equals((String) data))
+		{
+		    setLoggedIn(new_account);
+		    setLoggingIn(null);
+
+		    Log.info("Logged in: " + new_account);
+
+		    return true;
+		}
+		else
+		{
+		    loginFailed(new_account);
+		    setLoggingIn(null);
+
+		    Log.info("Login failed.");
+
+		    return false;
+		}
 	}
+	return false;
     }
     /**
      * @param data
      */
-    public void createAccount(final String data)
+    public Response createAccount(final List<Object> data)
     {
 	// TODO: Use data for account info
-	final Account account = new Account(-999, 55, "testname", "testlogin");
+	final Account account = new Account(55, "testname", "testlogin");
 	accounts.put("testlogin", account);
+	Log.info("Account created: " + account);
+
+	return Response.AccountCreated;
+    }
+    public Response createDiscount(final List<Object> data)
+    {
+	final Discount discount = new Discount(10);
+	Log.info("Discount created: " + discount);
+
+	return Response.DiscountCreated;
     }
     /**
      * @param login
      * @return
      */
-    public boolean login(final String login)
-    {
-	if (accounts.containsKey(login))
+    public void loginFailed(final Account account) {
+	account.setFailureAttempts(account.getFailureAttempts() + 1);
+	if(account.getFailureAttempts() > 5)
 	{
-	    final Account account = accounts.get(login);
-	    if (account.isFirstLogin())
-	    {
-		account.setPassword(createPassword());
-	    }
-	    else if (getPassword(account))
-	    {
-		this.logged_in = account;
-		account.setFailureAttempts(0);
-		return true;
-	    }
-	    else
-	    {
-		account.setFailureAttempts(
-			account.getFailureAttempts() + 1
-			);
-		if(account.getFailureAttempts() > 5)
-		{
-		    // TODO: Lock Out Account
-		    //	    - Disable login
-		    //	    - Require the account to be reset by an administrator
-		    //	    - Add in functionality to reset account
-		    account.setFailureAttempts(0); // lock the account
-		    System.out.println("Account has been locked due to many attempts");
-		}
-		else
-		{
-		    System.out.println("Failed attempts: " + account.getFailureAttempts());
-		}
-	    }
+	    // TODO: Lock Out Account
+	    //	    - Disable login
+	    //	    - Require the account to be reset by an administrator
+	    //	    - Add in functionality to reset account
+	    account.setFailureAttempts(0); // lock the account
+	    account.setLocked(true);
+	    Log.tui("Account has been locked due to many attempts.");
 	}
-	return false;
+	else
+	{
+	    Log.tui("Failed attempts: " + account.getFailureAttempts());
+	}
+
+    }
+    public Response login(final String login)
+    {
+	if (!accounts.containsKey(login)) return Response.AccountDoesNotExist;
+
+	final Account account = accounts.get(login);
+	if (account.isLocked())
+	{
+	    // Do not login
+	    return Response.AccountLocked;
+	}
+	else if (account.isFirstLogin())
+	{
+	    setLoggingIn(account);
+	    // account.setPassword(createPassword());
+	    // Force relogin with newly created password
+	    return Response.FirstLogin;
+	}
+	else
+	{
+	    setLoggingIn(account);
+	    account.setFailureAttempts(0);
+	    return Response.GetPassword;
+	}
+	// else
+	// {
+	//     loginFailed(account);
+	//     return Response.LoginFailed;
+	// }
     }
     /**
      * @return
      */
-    public String createPassword()
-    {
-	return send(Response.CreatePassword);
+ //    public String createPassword()
+ //    {
+	// return send(Response.FirstLogin);
+ //    }
+ //    /**
+ //     * @param account
+ //     * @return
+ //     */
+ //    public boolean getPassword(final Account account)
+ //    {
+	// return send(Response.GetPassword) == account.getPassword();
+ //    }
+    public Account getLoggingIn() {
+	return logging_in;
     }
-    /**
-     * @param account
-     * @return
-     */
-    public boolean getPassword(final Account account)
-    {
-	return send(Response.GetPassword) == account.getPassword();
+    public void setLoggingIn(Account loggingIn) {
+	this.logging_in = loggingIn;
     }
-}
+    public Account getLoggedIn() {
+	return logged_in;
+    }
+    public void setLoggedIn(Account logged_in) {
+	this.logged_in = logged_in;
+    }
 
-enum Request {
-    Login,
-    Password,
-    CreateAccount,
-}
-
-enum Response {
-    CreatePassword,
-    GetPassword,
 }
 
 class Prescription {
@@ -227,6 +316,13 @@ class Purchase {
     }
 }
 
+enum PermissionLevel {
+    Cashier,
+    Pharmacist,
+    PharmacyManager,
+    Admin,
+}
+
 class Account {
     // Data Members
     private boolean first_login;
@@ -246,9 +342,11 @@ class Account {
      * @param name
      * @param login
      */
-    Account(final int id, final int age, final String name, final String login)
+    Account(final int age, final String name, final String login)
     {
-	this.id = id;
+	// TODO: Assign global ID to everything
+	this.id = -1;
+	// TODO: Change to birthday..
 	this.age = age;
 	this.name = name;
 	this.login = login;
