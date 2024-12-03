@@ -210,9 +210,8 @@ class PercentDiscount extends Discount {
      */
     PercentDiscount(final double discount) {
 	super(discount);
-	if (discount > 1.0 || discount < 0.0) throw new IllegalArgumentException(
-		"Invalid discount amount"
-		);
+	if (discount > 1.0 || discount < 0.0)
+	    throw new IllegalArgumentException("Invalid discount amount");
     }
     /**
      * @param price
@@ -291,11 +290,13 @@ class Stock implements Cloneable {
     @Override
     public Stock clone()
     {
-	try {
-	    return (Stock) super.clone();
-	} catch (final CloneNotSupportedException e)
+	try
 	{
-	    throw new AssertionError("Clone not supposed for StockItemType");
+	    return (Stock) super.clone();
+	}
+	catch (final CloneNotSupportedException e)
+	{
+	    throw new AssertionError("Clone not supposed for " + this.getClass().getName());
 	}
     }
     @Override

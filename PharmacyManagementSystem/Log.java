@@ -33,7 +33,7 @@ public class Log {
 	log(Level.Error, true, message);
     }
     public static void tui(String message) {
-	log(Level.Trace, false, message);
+	log(Level.TUI, false, message);
     }
     public static void log(Level log_level, boolean show_level, String message) {
 	if (log_level.ordinal() >= LOG_LEVEL.ordinal()) {
