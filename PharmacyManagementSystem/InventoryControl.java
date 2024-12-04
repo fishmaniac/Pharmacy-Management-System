@@ -3,34 +3,41 @@ package PharmacyManagementSystem;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.HashMap;
 
 /** {@link InventoryControl}
  * 
  */
 public class InventoryControl {
     // TODO: Make private
-    public List<Stock> inventory;
-    public List<Order> orders;
+    public HashMap<UUID, Stock> inventory;
+    public HashMap<UUID, Order> orders;
     public List<AutoOrder> auto_orders;
 
     public InventoryControl()
     {
-	this.inventory = new ArrayList<>();
-	this.orders = new ArrayList<>();
+	this.inventory = new HashMap<>();
+	this.orders = new HashMap<>();
 	this.auto_orders = new ArrayList<>();
-    }
 
+	Drug drug = new Drug(100, 10.50, "Test Drug Name", null, false, "Test Drug", LocalDateTime.now().plusWeeks(1));
+	this.inventory.put(drug.getID(), drug);
+    }
+    public Stock findStock(UUID id) {
+	return this.inventory.get(id);
+    }
     // Getters/Setters
-    public List<Stock> getInventory() {
+    public HashMap<UUID, Stock> getInventory() {
 	return inventory;
     }
-    public void setInventory(final List<Stock> inventory) {
+    public void setInventory(final HashMap<UUID, Stock> inventory) {
 	this.inventory = inventory;
     }
-    public List<Order> getOrders() {
+    public HashMap<UUID, Order> getOrders() {
 	return orders;
     }
-    public void setOrders(final List<Order> orders) {
+    public void setOrders(final HashMap<UUID, Order> orders) {
 	this.orders = orders;
     }
     public List<AutoOrder> getAutoOrders() {
@@ -46,14 +53,14 @@ public class InventoryControl {
      */
     public void addStock(final Stock item)
     {
-	this.inventory.add(item);
+	this.inventory.put(item.id, item);
     }
     /**
      * @param item
      */
     public void removeStock(final Stock item)
     {
-	this.inventory.remove(item);
+	this.inventory.remove(item.id);
     }
 
     // Backend Order API
@@ -62,14 +69,14 @@ public class InventoryControl {
      */
     public void addOrder(final Order order)
     {
-	this.orders.add(order);
+	this.orders.put(order.getID(), order);
     }
     /**
      * @param order
      */
     public void removeOrder(final Order order)
     {
-	this.orders.remove(order);
+	this.orders.remove(order.getID());
     }
     /**
      * @param order
@@ -101,22 +108,19 @@ public class InventoryControl {
      */
     public void createUniqueOrder(final Stock order_item, final int order_quantity)
     {
-	for (final Order order : this.orders)
+	final Order order = this.orders.get(order_item.getID());
+	for (final Stock item : order.getOrderItems())
 	{
-	    for (final Stock item : order.getOrderItems())
+	    if (item.getName() == order_item.getName())
 	    {
-		if (item.getName() == order_item.getName())
-		{
-		    // Return early if the item is already ordered
-		    return;
-		}
+		// Return early if the item is already ordered
+		return;
 	    }
 	}
 
 	order_item.setQuantity(order_quantity);//
-					       // TODO: Update expiration date on new orders
+        // TODO: Update expiration date on new orders
 	final Order new_order = new Order(
-		-999,
 		order_item,
 		LocalDateTime.now()
 		// .plusWeeks(1) // Delivery time here
@@ -131,16 +135,17 @@ public class InventoryControl {
      */
     public void updateAutoOrders()
     {
-	for (final Stock item : this.inventory)
+	for (final UUID key : this.inventory.keySet())
 	{
+	    Stock stock = this.inventory.get(key);
 	    for (final AutoOrder auto_order : this.auto_orders)
 	    {
 		if (
-			item.getName().compareTo(auto_order.r_name()) == 0
-			&& item.getQuantity() < auto_order.r_min_quantity()
+			stock.getName().compareTo(auto_order.r_name()) == 0
+			&& stock.getQuantity() < auto_order.r_min_quantity()
 		   )
 		{
-		    createUniqueOrder(item.clone(), auto_order.r_order_quantity());
+		    createUniqueOrder(stock.clone(), auto_order.r_order_quantity());
 		}
 	    }
 	}
@@ -151,8 +156,9 @@ public class InventoryControl {
     public void updateDeliveries()
     {
 	final List<Order> removals = new ArrayList<>();
-	for (final Order order : this.orders)
+	for (final UUID key : this.orders.keySet())
 	{
+	    final Order order = this.orders.get(key);
 	    if (order.getShipmentDate()
 		    .isAfter(LocalDateTime.now())
 		    || order.getShipmentDate()
@@ -173,27 +179,40 @@ public class InventoryControl {
      */
     public void updateExpired()
     {
-	// TODO
+	// TODO: Update expired prescriptions, stock items, and discounts
     }
 }
 
 class Discount {
     protected double discount;
+    protected LocalDateTime expiration;
 
     /**
      * @param discount
      */
-    Discount(final double discount) {
+    Discount(final double discount, final LocalDateTime expiration) {
 	this.discount = discount;
+	this.expiration = expiration;
+    }
+    protected boolean isExpired() {
+	return this.expiration.isAfter(LocalDateTime.now());
     }
     /**
      * @param price
      * @return
      */
     public double getDiscount(final double price) {
+	if (isExpired()) return price;
 	if (price < discount) return 0;
 
-    	return price - discount;
+	return price - discount;
+    }
+    @Override
+    public String toString()
+    {
+	return "[Discount: $" + this.discount
+	    + ", Expiration: " + this.expiration
+	    + "]";
     }
 }
 
@@ -208,23 +227,33 @@ class PercentDiscount extends Discount {
      * 
      * @throws IllegalArgumentException if the discount is greater than 1.0 or less than 0.0.
      */
-    PercentDiscount(final double discount) {
-	super(discount);
+    PercentDiscount(final double discount, final LocalDateTime expiration) {
+	super(discount, expiration);
 	if (discount > 1.0 || discount < 0.0)
-	    throw new IllegalArgumentException("Invalid discount amount");
+	    throw new IllegalArgumentException("Percent discount out of range (0.0-1.0)");
     }
     /**
      * @param price
      * @return
      */
-    public double getPercentDiscount(final double price) {
-	return price * discount;
+    @Override
+    public double getDiscount(final double price) {
+	if (isExpired()) return price;
+
+	return price * (1.0 - discount);
+    }
+    @Override
+    public String toString()
+    {
+	return "[Discount: " + this.discount
+	    + "%, Expiration: " + this.expiration
+	    + "]";
     }
 }
 
 class Stock implements Cloneable {
     // Data Members
-    protected int id;
+    protected UUID id;
     protected int quantity;
     protected double price;
     protected String name;
@@ -232,15 +261,15 @@ class Stock implements Cloneable {
 
     // Constructors
     /**
-     * @param id
      * @param quantity
      * @param price
      * @param name
      * @param discount
      */
-    public Stock(final int id, final int quantity, final double price, final String name, final Discount discount)
+    public Stock(final int quantity, final double price, final String name, final Discount discount)
     {
-	this.id = id;
+	// TODO: Assign global ID
+	this.id = UUID.randomUUID();
 	this.quantity = quantity;
 	this.price = price;
 	this.discount = discount;
@@ -248,10 +277,10 @@ class Stock implements Cloneable {
     }
 
     // Getters/Setters
-    public int getId() {
+    public UUID getID() {
 	return id;
     }
-    public void setId(final int id) {
+    public void setID(final UUID id) {
 	this.id = id;
     }
     public int getQuantity()
@@ -262,10 +291,16 @@ class Stock implements Cloneable {
     {
 	this.quantity = quantity;
     }
-    // TODO: Use discount to get price
     public double getPrice()
     {
-	return this.price;
+	if (this.discount == null) return this.price;
+	else if (this.discount.expiration.isBefore(LocalDateTime.now())) {
+	    Log.warning("Discount " + this.discount + " is expired");
+	    return this.price;
+	}
+	else {
+	    return this.discount.getDiscount(this.price);
+	}
     }
     public void setPrice(final double price)
     {
@@ -302,10 +337,11 @@ class Stock implements Cloneable {
     @Override
     public String toString()
     {
-	return "[ID: " + this.id
-	    + ", Quantity: " + this.quantity
-	    + ", Price: " + this.price
-	    + ", Name: " + this.name + "]";
+	return "[ID: " + this.getID()
+	    + ", Quantity: " + this.getQuantity()
+	    + ", Price: " + this.getPrice()
+	    + ", Discount: " + this.getDiscount()
+	    + ", Name: " + this.getName() + "]";
     }
 }
 
@@ -317,7 +353,6 @@ class Drug extends Stock {
 
     // Constructors
     /**
-     * @param id
      * @param quantity
      * @param price
      * @param name
@@ -326,10 +361,10 @@ class Drug extends Stock {
      * @param drug_name
      * @param expiration_date
      */
-    public Drug(final int id, final int quantity, final double price, final String name, final Discount discount,
+    public Drug(final int quantity, final double price, final String name, final Discount discount,
 	    final boolean is_controlled, final String drug_name, final LocalDateTime expiration_date)
     {
-	super(id, quantity, price, name, discount);
+	super(quantity, price, name, discount);
 	this.is_controlled = is_controlled;
 	this.drug_name = drug_name;
 	this.expiration_date = expiration_date;
@@ -385,31 +420,29 @@ record AutoOrder(
 
 class Order {
     // Data Members
-    private final int order_id;
+    private final UUID order_id;
     private final List<Stock> order_items;
     private final LocalDateTime shipment_date;
 
     // Constructors
     /**
-     * @param order_id
      * @param order_items
      * @param shipment_date
      */
-    public Order(final int order_id, final List<Stock> order_items, final LocalDateTime shipment_date)
+    public Order(final List<Stock> order_items, final LocalDateTime shipment_date)
     {
-	this.order_id = order_id;
+	this.order_id = UUID.randomUUID();
 	this.order_items = order_items;
 	this.shipment_date = shipment_date;
     }
 
     /**
-     * @param order_id
      * @param order_item
      * @param shipment_date
      */
-    public Order(final int order_id, final Stock order_item, final LocalDateTime shipment_date)
+    public Order(final Stock order_item, final LocalDateTime shipment_date)
     {
-	this.order_id = order_id;
+	this.order_id = UUID.randomUUID();
 	this.shipment_date = shipment_date;
 
 	final List<Stock> order_items = new ArrayList<>();
@@ -418,7 +451,7 @@ class Order {
     }
 
     // Getters/Setters
-    public int getID()
+    public UUID getID()
     {
 	return this.order_id;
     }
