@@ -9,12 +9,12 @@ import java.util.UUID;
 /** {@link InventoryControl} */
 public class InventoryControl {
     // TODO: Make private
-    public HashMap<UUID, Stock> inventory;
+    public HashMap<UUID, Stock> stock;
     public HashMap<UUID, Order> orders;
     public List<AutoOrder> auto_orders;
 
     public InventoryControl() {
-        this.inventory = new HashMap<>();
+        this.stock = new HashMap<>();
         this.orders = new HashMap<>();
         this.auto_orders = new ArrayList<>();
 
@@ -27,20 +27,20 @@ public class InventoryControl {
                         false,
                         "Test Drug",
                         LocalDateTime.now().plusWeeks(1));
-        this.inventory.put(drug.getID(), drug);
+        this.stock.put(drug.getID(), drug);
     }
 
     public Stock findStock(UUID id) {
-        return this.inventory.get(id);
+        return this.stock.get(id);
     }
 
     // Getters/Setters
-    public HashMap<UUID, Stock> getInventory() {
-        return inventory;
+    public HashMap<UUID, Stock> getStock() {
+        return stock;
     }
 
-    public void setInventory(final HashMap<UUID, Stock> inventory) {
-        this.inventory = inventory;
+    public void setStock(final HashMap<UUID, Stock> inventory) {
+        this.stock = inventory;
     }
 
     public HashMap<UUID, Order> getOrders() {
@@ -64,14 +64,14 @@ public class InventoryControl {
      * @param item
      */
     public void addStock(final Stock item) {
-        this.inventory.put(item.id, item);
+        this.stock.put(item.id, item);
     }
 
     /**
      * @param item
      */
     public void removeStock(final Stock item) {
-        this.inventory.remove(item.id);
+        this.stock.remove(item.id);
     }
 
     // Backend Order API
@@ -127,11 +127,7 @@ public class InventoryControl {
 
         order_item.setQuantity(order_quantity); //
         // TODO: Update expiration date on new orders
-        final Order new_order =
-                new Order(
-                        order_item, LocalDateTime.now()
-                        // .plusWeeks(1) // Delivery time here
-                        );
+        final Order new_order = new Order(order_item);
         System.out.println("New unique order: " + new_order);
         addOrder(new_order);
     }
@@ -165,11 +161,8 @@ public class InventoryControl {
                 }
             }
             if (new_order_items.size() > 0) {
-                final Order order =
-                        new Order(
-                                new_order_items, LocalDateTime.now()
-                                // .plusWeeks(1) // Delivery time here
-                                );
+                final Order order = new Order(new_order_items);
+                // TODO: Create order
             }
         }
     }
@@ -449,21 +442,19 @@ class Order {
     // Constructors
     /**
      * @param order_items
-     * @param shipment_date
      */
-    public Order(final List<Stock> order_items, final LocalDateTime shipment_date) {
+    public Order(final List<Stock> order_items) {
         this.order_id = UUID.randomUUID();
         this.order_items = order_items;
-        this.shipment_date = shipment_date;
+        this.shipment_date = LocalDateTime.now().plusWeeks(2);
     }
 
     /**
      * @param order_item
-     * @param shipment_date
      */
-    public Order(final Stock order_item, final LocalDateTime shipment_date) {
+    public Order(final Stock order_item) {
         this.order_id = UUID.randomUUID();
-        this.shipment_date = shipment_date;
+        this.shipment_date = LocalDateTime.now().plusWeeks(2);
 
         final List<Stock> order_items = new ArrayList<>();
         order_items.add(order_item);
