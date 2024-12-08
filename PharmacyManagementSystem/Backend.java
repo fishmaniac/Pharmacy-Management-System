@@ -31,19 +31,12 @@ enum Request {
     RemoveCustomer,
     RemoveOrder,
     RemoveAutoOrder,
+    UnlockAccount,
 }
 
 enum Response {
-    AccountLocked,
-    AccountCreated,
-    AccountDoesNotExist,
     FirstLogin,
-    LoginFailed,
-    AlreadyLoggedIn,
     GetPassword,
-    LoggedOut,
-    DiscountCreated,
-    DiscountFailed,
     NewPassword,
     Ok,
     BadRequest,
@@ -83,23 +76,12 @@ public class Backend {
         initAdmin();
     }
 
-    private void initAdmin() {
-        Account admin =
-                new Account(
-                        LocalDateTime.of(1970, 1, 1, 0, 0),
-                        "Admin",
-                        "admin",
-                        PermissionLevel.Admin);
-        admin.setFirstLogin(false);
-        admin.setPassword("admin");
 
-        this.accounts.put(admin.getLogin(), admin);
-    }
-
-    private boolean auth(PermissionLevel required) {
-        Account account = getLoggedIn();
-
-        return account != null && account.getPermissions().ordinal() >= required.ordinal();
+    public void update() {
+        this.inventory.updateAutoOrders();
+        this.inventory.updateDeliveries();
+        this.inventory.updateExpired();
+        updateCustomers();
     }
 
     /**
@@ -108,10 +90,6 @@ public class Backend {
      */
     // Would be from front end (maybe use CLI input)
     public Response receive(final Request request, Object data) {
-        this.inventory.updateAutoOrders();
-        this.inventory.updateDeliveries();
-        /* TODO: Update expired */
-        this.inventory.updateExpired();
         switch (request) {
             case Login:
                 return checkLocked((String) data);
@@ -146,27 +124,27 @@ public class Backend {
             case GetInventory:
                 if (!auth(PermissionLevel.PharmacyTechnician)) return Response.Forbidden;
 
-                Log.info("Inventory: " + this.inventory.getStock());
+                Log.tui("Inventory: " + this.inventory.getStock());
                 return Response.Ok;
             case GetOrders:
                 if (!auth(PermissionLevel.PharmacyTechnician)) return Response.Forbidden;
 
-                Log.info("Orders: " + this.inventory.getOrders());
+                Log.tui("Orders: " + this.inventory.getOrders());
                 return Response.Ok;
             case GetAutoOrders:
                 if (!auth(PermissionLevel.PharmacyTechnician)) return Response.Forbidden;
 
-                Log.info("Auto Orders: " + this.inventory.getAutoOrders());
+                Log.tui("Auto Orders: " + this.inventory.getAutoOrders());
                 return Response.Ok;
             case GetAccounts:
                 if (!auth(PermissionLevel.PharmacyTechnician)) return Response.Forbidden;
 
-                Log.info("Accounts: " + this.accounts);
+                Log.tui("Accounts: " + this.accounts);
                 return Response.Ok;
             case GetCustomers:
                 if (!auth(PermissionLevel.PharmacyTechnician)) return Response.Forbidden;
 
-                Log.info("Patients: " + this.customers);
+                Log.tui("Patients: " + this.customers);
                 return Response.Ok;
             case RemoveAccount:
                 if (!auth(PermissionLevel.Admin)) return Response.Forbidden;
@@ -186,6 +164,9 @@ public class Backend {
             case RemoveAutoOrder:
                 if (!auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
                 return removeAutoOrder((String) data);
+            case UnlockAccount:
+                if (!auth(PermissionLevel.Admin)) return Response.Forbidden;
+                return unlockAccount((String) data);
         }
 
         return Response.NotFound;
@@ -200,14 +181,11 @@ public class Backend {
         Account logged_in = getLoggedIn();
 
         if (data == null) {
-            Log.warning("Null response data: " + response);
+            Log.error("Null response data: " + response);
             return;
         }
 
         switch (response) {
-            case AccountLocked:
-                setLoggingIn(null);
-                break;
             case FirstLogin:
                 logging_in.setPassword((String) data);
                 logging_in.setFirstLogin(false);
@@ -221,14 +199,46 @@ public class Backend {
         }
     }
 
+    private void updateCustomers() {
+        for (UUID id : this.customers.keySet()) {
+            if (
+                this.customers.get(id).last_access.isBefore(
+                    LocalDateTime.now().minusYears(5)
+                )
+            ) {
+                this.customers.remove(id);
+            }
+        }
+    }
+
+    private void initAdmin() {
+        Account admin =
+                new Account(
+                        LocalDateTime.of(1970, 1, 1, 0, 0),
+                        "Admin",
+                        "admin",
+                        PermissionLevel.Admin);
+        admin.setFirstLogin(false);
+        admin.setPassword("admin");
+
+        this.accounts.put(admin.getLogin(), admin);
+    }
+
+    private boolean auth(PermissionLevel required) {
+        Account account = getLoggedIn();
+
+        return account != null && account.getPermissions().ordinal() >= required.ordinal();
+    }
+
     /**
      * @param account
      */
     private Response createAccount(final Account account) {
+        if (this.accounts.containsKey(account.getLogin())) return Response.Forbidden;
         this.accounts.put(account.getLogin(), account);
-        Log.info("Account created: " + account);
+        Log.tui("Account created: " + account);
 
-        return Response.AccountCreated;
+        return Response.Ok;
     }
 
     private Response createDiscount(final List<Object> data) {
@@ -236,13 +246,14 @@ public class Backend {
 
         Stock item = this.inventory.getStock().get((UUID) data.get(1));
         if (item == null) {
+            Log.tui("Discount creation failed.");
             return Response.NotFound;
         }
 
         item.setDiscount(discount);
-        Log.info(discount.getClass().getName() + " created: " + discount);
+        Log.tui(discount.getClass().getName() + " created: " + discount);
 
-        return Response.DiscountCreated;
+        return Response.Ok;
     }
 
     private Response createCustomer(final Customer customer) {
@@ -254,12 +265,10 @@ public class Backend {
 
     private Response createPrescription(final List<Object> data) {
         if (data == null) return Response.BadRequest;
-        Patient customer = (Patient) this.customers.get(
-            data.get(0)
-        );
-        customer.getPrescriptions().add(
-            (Prescription) data.get(1)
-        );
+
+        Patient customer = (Patient) this.customers.get(data.get(0));
+        if (customer == null) return Response.BadRequest;
+        customer.addPrescription((Prescription) data.get(1));
 
         return Response.Ok;
     }
@@ -273,7 +282,7 @@ public class Backend {
 
     private Response createAutoOrder(final AutoOrder order) {
         if (order == null) return Response.BadRequest;
-        this.inventory.getAutoOrders().add(order);
+        this.inventory.addAutoOrder(order);
 
         return Response.Ok;
     }
@@ -285,12 +294,17 @@ public class Backend {
     }
 
     private Response removeAccount(final String data) {
-        if (this.accounts.remove(data) != null) return Response.Ok;
+        UUID id = UUID.fromString(data);
+        if (id.equals(this.getLoggedIn().getID())) {
+            Log.error("Cannot delete current account.");
+            return Response.Forbidden;
+        }
+        if (this.accounts.remove(id) != null) return Response.Ok;
         else return Response.NotFound;
     }
 
     private Response removeDiscount(final String data) {
-        Stock stock = this.inventory.getStock().get(data);
+        Stock stock = this.inventory.getStock().get(UUID.fromString(data));
         if (stock == null) return Response.NotFound;
 
         stock.setDiscount(null);
@@ -298,23 +312,32 @@ public class Backend {
     }
 
     private Response removeStock(final String data) {
-        if (this.inventory.getStock().remove(data) != null) return Response.Ok;
+        if (this.inventory.getStock().remove(UUID.fromString(data)) != null) return Response.Ok;
         else return Response.NotFound;
     }
 
     private Response removeCustomer(final String data) {
-        if (this.customers.remove(data) != null) return Response.Ok;
+        if (this.customers.remove(UUID.fromString(data)) != null) return Response.Ok;
         else return Response.NotFound;
     }
 
     private Response removeOrder(final String data) {
-        if (this.accounts.remove(data) != null) return Response.Ok;
+        if (this.accounts.remove(UUID.fromString(data)) != null) return Response.Ok;
         else return Response.NotFound;
     }
 
     private Response removeAutoOrder(final String data) {
-        if (this.accounts.remove(data) != null) return Response.Ok;
+        if (this.accounts.remove(UUID.fromString(data)) != null) return Response.Ok;
         else return Response.NotFound;
+    }
+
+    private Response unlockAccount(final String data) {
+        Account account = this.accounts.get(UUID.fromString(data));
+        if (account == null) return Response.NotFound;
+        if (account.isLocked()) {
+            account.setLocked(false);
+            return Response.Ok;
+        } else return Response.BadRequest;
     }
 
     /**
@@ -337,13 +360,21 @@ public class Backend {
      */
     private Response checkLocked(final String login) {
         UUID key = UUID.nameUUIDFromBytes(login.getBytes());
-        if (!accounts.containsKey(key)) return Response.AccountDoesNotExist;
-        if (getLoggedIn() != null) return Response.AlreadyLoggedIn;
+        if (!accounts.containsKey(key)) {
+            Log.error("Account does not exist.");
+            return Response.NotFound;
+        }
+        if (getLoggedIn() != null) {
+            Log.error("A user is already logged into the system.");
+            return Response.BadRequest;
+        }
 
         Account account = accounts.get(key);
         if (account.isLocked()) {
             // Do not login
-            return Response.AccountLocked;
+            Log.info("Account is locked. It must be unlocked by an admin.");
+            setLoggingIn(null);
+            return Response.Forbidden;
         } else if (account.isFirstLogin()) {
             setLoggingIn(account);
             // Force relogin with newly created password
@@ -377,8 +408,9 @@ public class Backend {
 
     private Response logout() {
         this.setLoggedIn(null);
+        Log.info("Logged out.");
 
-        return Response.LoggedOut;
+        return Response.Ok;
     }
 
     private Account getLoggingIn() {
@@ -400,14 +432,17 @@ public class Backend {
 
 class Prescription {
     // Data Members
+    private UUID id;
     private List<Stock> items;
     private LocalDateTime last_fill_time;
     private Duration refill_duration;
 
     Prescription(List<Stock> items, Duration refill_duration) {
+        this.id = UUID.randomUUID();
         this.items = items;
         this.last_fill_time = null;
         this.refill_duration = refill_duration;
+        Log.audit("Prescription created: " + this);
     }
 
     // Getters/Setters
@@ -447,6 +482,7 @@ class Customer {
         this.birthday = birthday;
         this.name = name;
         this.last_access = LocalDateTime.now();
+        Log.audit("Customer created: " + this);
     }
 
     // Getters/Setters
@@ -482,9 +518,13 @@ class Customer {
         return last_access;
     }
 
-    public void setLastAccess() {
+    public void setLastAccess(LocalDateTime time) {
+        this.last_access = time;
+    }
+    public void setLastAccessNow() {
         this.last_access = LocalDateTime.now();
     }
+
     @Override
     public String toString() {
         return "ID: " + this.getID()
@@ -496,27 +536,31 @@ class Customer {
 
 class Patient extends Customer {
     private List<Prescription> prescriptions;
+    private List<Prescription> prescription_history;
 
     Patient(LocalDateTime birthday, String name) {
         super(birthday, name);
     }
 
     Patient(
-        LocalDateTime birthday,
-        String name,
-        List<Prescription> prescriptions
-        ) {
+            LocalDateTime birthday,
+            String name,
+            List<Prescription> prescriptions
+           ) {
         super(birthday, name);
         this.prescriptions = prescriptions;
-        }
+        this.prescription_history = this.prescriptions;
+           }
 
     // Getters/Setters
     public List<Prescription> getPrescriptions() {
         return prescriptions;
     }
 
-    public void setPrescriptions(final List<Prescription> prescriptions) {
-        this.prescriptions = prescriptions;
+    public void addPrescription(Prescription prescription) {
+        Log.audit("Prescription added to Patient " + this.getID());
+        this.prescriptions.add(prescription);
+        this.prescription_history.add(prescription);
     }
 
     @Override
@@ -536,6 +580,7 @@ class Purchase {
         this.id = UUID.randomUUID();
         this.purchase_date = LocalDateTime.now();
         this.items = items;
+        Log.audit("Purchase created: " + this);
     }
 
     Purchase(Stock item) {
@@ -543,13 +588,14 @@ class Purchase {
         this.purchase_date = LocalDateTime.now();
         this.items = new ArrayList<>();
         this.items.add(item);
+        Log.audit("Purchase created: " + this);
     }
 
-    public UUID getId() {
+    public UUID getID() {
         return id;
     }
 
-    public void setId(final UUID id) {
+    public void setID(final UUID id) {
         this.id = id;
     }
 
@@ -603,22 +649,23 @@ class Account {
             final String name,
             final String login,
             final PermissionLevel permissions) {
-        this.id = UUID.randomUUID();
         this.birthday = birthday;
         this.name = name;
         this.login = UUID.nameUUIDFromBytes(login.getBytes());
+        this.id = this.login;
         this.permissions = permissions;
         // Create password on first login
         this.password = null;
         this.first_login = true;
+        Log.audit("Account created: " + this);
             }
 
     // Getters/Setters
-    public UUID getId() {
+    public UUID getID() {
         return id;
     }
 
-    public void setId(final UUID id) {
+    public void setID(final UUID id) {
         this.id = id;
     }
 
