@@ -6,9 +6,12 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.InputMismatchException;
 import java.util.List;
 import java.util.Scanner;
 import java.util.UUID;
+
+
 
 class TUI {
     private static void tui(String message) {
@@ -89,12 +92,7 @@ class TUI {
     }
 
     public static Stock createStock(Scanner scanner) {
-        tui("Enter stock type...\n\t" + "0: stock\n\t" + "1: drug");
-
-        Stock stock;
-        int input = scanner.nextInt();
-        scanner.nextLine();
-
+        tui("Enter stock type...");
         StockType type = enumOption(scanner, StockType.class);
 
         tui("Enter item quantity:");
@@ -214,15 +212,11 @@ class TUI {
             Stock item = createStock(scanner);
             order_items.add(item);
 
-            tui("Enter the quantity to order:");
-            int order_quantity = scanner.nextInt();
-            scanner.nextLine();
-
             tui("Enter the minimum stock to initiate the auto order:");
             int minimum_quantity = scanner.nextInt();
             scanner.nextLine();
 
-            MinStock min_stock = new MinStock(minimum_quantity, order_quantity);
+            MinStock min_stock = new MinStock(minimum_quantity, item.getQuantity());
             quantities.put(item.getID(), min_stock);
         }
         Order order = new Order(order_items);
@@ -260,9 +254,15 @@ class TUI {
     }
 
     public static String removeAutoOrder(Scanner scanner) {
-        tui("Enter auto order ID to remove");
+        tui("Enter auto order ID to remove:");
         return scanner.nextLine();
     }
+
+    public static String unlockAccount(Scanner scanner) {
+        tui("Enter account ID to unlock:");
+        return scanner.nextLine();
+    }
+
 }
 
 public class Main {
@@ -296,15 +296,11 @@ public class Main {
     }
 
     private static Object requestData(Scanner scanner, final Request request) {
-        List<Object> data = new ArrayList<>();
-        Object text = null;
-
         switch (request) {
             case Login:
                 return TUI.login(scanner);
             case Logout:
-                tui("Logging out...");
-                return Response.LoggedOut;
+                return Response.Ok;
             case CreateAccount:
                 return TUI.createAccount(scanner);
             case CreateStock:
@@ -313,6 +309,8 @@ public class Main {
                 return TUI.createDiscountUUID(scanner);
             case CreateCustomer:
                 return TUI.createCustomer(scanner);
+            case CreatePrescription:
+                return TUI.createPrescription(scanner);
             case CreateOrder:
                 return TUI.createOrder(scanner);
             case CreateAutoOrder:
@@ -341,10 +339,11 @@ public class Main {
                 return TUI.removeOrder(scanner);
             case RemoveAutoOrder:
                 return TUI.removeAutoOrder(scanner);
+            case UnlockAccount:
+                return TUI.unlockAccount(scanner);
         }
 
         Log.error("Invalid request data.");
-
         return null;
     }
 
@@ -354,16 +353,8 @@ public class Main {
         String temp = null;
 
         switch (response) {
-            case AccountLocked:
-                tui("Account locked. It must be unlocked by an admin.");
-                return Response.AccountLocked;
-            case AccountCreated:
-                tui("Account created.");
-                return Response.AccountCreated;
-            case AccountDoesNotExist:
-                tui("Account does not exist.");
-                return Response.AccountDoesNotExist;
             case FirstLogin:
+                tui("First login."); // Fall through
             case NewPassword:
                 tui("Create a new password:");
                 text = scanner.nextLine();
@@ -375,24 +366,9 @@ public class Main {
                 } else tui("Password did not match.");
 
                 return Response.Ok;
-            case LoginFailed:
-                tui("Login failed.");
-                return Response.LoginFailed;
-            case AlreadyLoggedIn:
-                tui("A user is already logged into the system.");
-                return Response.AlreadyLoggedIn;
             case GetPassword:
                 tui("Enter your account password:");
                 return scanner.nextLine();
-            case LoggedOut:
-                tui("Logged out.");
-                return Response.LoggedOut;
-            case DiscountCreated:
-                tui("Discount created.");
-                return Response.DiscountCreated;
-            case DiscountFailed:
-                tui("Discount creation failed.");
-                return Response.DiscountFailed;
             case Ok:
                 tui("200: OK.");
                 return Response.Ok;
@@ -414,8 +390,7 @@ public class Main {
 
     private static void request(Scanner scanner, Backend backend, int input) {
         if (input > Request.values().length - 1 || input < 0) {
-            tui("Invalid request.");
-            return;
+            throw new IllegalArgumentException("Invalid request.");
         }
 
         Request request = Request.values()[input];
@@ -428,6 +403,21 @@ public class Main {
         backend.send(response, data);
     }
 
+    int input(Scanner scanner) {
+        while (true) {
+            try {
+                requests();
+                return scanner.nextInt();
+            } catch (InputMismatchException e) {
+                tui("Invalid request.");
+                scanner.nextLine();
+            }
+            finally {
+                scanner.nextLine();
+            }
+        }
+    }
+
     public static void main(String[] args) {
         Backend backend = new Backend();
         tui("Welcome to the Pharmacy Management System.");
@@ -435,19 +425,30 @@ public class Main {
         Scanner scanner = new Scanner(System.in);
 
         requests();
+        // Must be valid or system will shutdown.
         int request = scanner.nextInt();
         scanner.nextLine();
 
         while (request != -1) {
             try {
+                backend.update();
                 request(scanner, backend, request);
-
-                requests();
-                request = scanner.nextInt();
-                scanner.nextLine();
             } catch (Exception e) {
                 Log.error("Exception in Main: " + e.getMessage());
                 e.printStackTrace();
+            }
+            finally {
+                while (true) {
+                    try {
+                        requests();
+                        request = scanner.nextInt();
+                        scanner.nextLine();
+                        break;
+                    } catch (InputMismatchException e) {
+                        tui("Invalid request.");
+                        scanner.nextLine();
+                    }
+                }
             }
         }
 
