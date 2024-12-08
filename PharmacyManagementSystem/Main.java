@@ -1,9 +1,11 @@
 package PharmacyManagementSystem;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Scanner;
 import java.util.UUID;
@@ -30,15 +32,49 @@ class TUI {
         return LocalDateTime.of(LocalDate.of(year, month, day), LocalTime.MIDNIGHT);
     }
 
+    public static <E extends Enum<E>> E enumOption(Scanner scanner, Class<E> type) {
+        tui("Choose an option:");
+
+        E[] list = type.getEnumConstants();
+        for (E e : list) {
+            tui(e.ordinal() + ": " + e);
+        }
+
+        int option = scanner.nextInt();
+        scanner.nextLine();
+        if (option > type.getEnumConstants().length - 1) {
+            throw new IllegalArgumentException("Invalid option.");
+        } else return list[option];
+    }
+
+    public static Discount createDiscount(Scanner scanner) {
+        tui("Enter discount type...");
+        DiscountType type = enumOption(scanner, DiscountType.class);
+
+        double discount = scanner.nextDouble();
+        scanner.nextLine();
+
+        tui("Enter expiration date...");
+        LocalDateTime expiration = date(scanner);
+
+        switch (type) {
+            case FlatDiscount:
+                return new Discount(discount, expiration);
+            case PercentDiscount:
+                return new PercentDiscount(discount, expiration);
+        }
+
+        throw new IllegalArgumentException("Cannot instantiate Discount");
+    }
+
     public static String login(Scanner scanner) {
         tui("Enter your username:");
         return scanner.nextLine();
     }
 
-    public static Object createAccount(Scanner scanner) {
-        tui("Enter account user's age:");
-        int age = scanner.nextInt();
-        scanner.nextLine();
+    public static Account createAccount(Scanner scanner) {
+        tui("Enter account user's birthday:");
+        LocalDateTime birthday = date(scanner);
 
         tui("Enter account user's full name:");
         String name = scanner.nextLine();
@@ -47,55 +83,19 @@ class TUI {
         String login = scanner.nextLine();
 
         tui("Choose account permission level...");
-        for (PermissionLevel permission : PermissionLevel.values()) {
-            tui("\t" + permission.ordinal() + ": " + permission);
-        }
+        PermissionLevel permission = enumOption(scanner, PermissionLevel.class);
 
-        PermissionLevel permission;
-        switch (scanner.nextInt()) {
-            case 0:
-                permission = PermissionLevel.Cashier;
-                break;
-            case 1:
-                permission = PermissionLevel.PharmacyTechnician;
-                break;
-            case 2:
-                permission = PermissionLevel.Pharmacist;
-                break;
-            case 3:
-                permission = PermissionLevel.PharmacyManager;
-                break;
-            case 4:
-                permission = PermissionLevel.Admin;
-                break;
-            default:
-                Log.error("Invalid permission level.");
-                return Response.BadRequest;
-        }
-        scanner.nextLine();
-
-        return new Account(age, name, login, permission);
+        return new Account(birthday, name, login, permission);
     }
 
-    public static Object createStock(Scanner scanner) {
+    public static Stock createStock(Scanner scanner) {
         tui("Enter stock type...\n\t" + "0: stock\n\t" + "1: drug");
 
         Stock stock;
         int input = scanner.nextInt();
         scanner.nextLine();
 
-        StockType type;
-        switch (input) {
-            case 0:
-                type = StockType.Stock;
-                break;
-            case 1:
-                type = StockType.Drug;
-                break;
-            default:
-                Log.error("Invalid stock type.");
-                return Response.BadRequest;
-        }
+        StockType type = enumOption(scanner, StockType.class);
 
         tui("Enter item quantity:");
         int quantity = scanner.nextInt();
@@ -134,7 +134,7 @@ class TUI {
         return new Drug(quantity, price, name, discount, is_controlled, drug_name, expiration);
     }
 
-    public static Object createDiscountUUID(Scanner scanner) {
+    public static List<Object> createDiscountUUID(Scanner scanner) {
         List<Object> data = new ArrayList<>();
 
         data.add(createDiscount(scanner));
@@ -145,54 +145,122 @@ class TUI {
         return data;
     }
 
-    public static Discount createDiscount(Scanner scanner) {
-        tui("Enter discount type...\n\t" + "0: flat discount\n\t" + "1: percent discount");
-        int input = scanner.nextInt();
-        scanner.nextLine();
+    public static Customer createCustomer(Scanner scanner) {
+        tui("Enter customer type...");
+        CustomerType type = enumOption(scanner, CustomerType.class);
 
-        DiscountType type;
-        switch (input) {
-            case 0:
-                tui("Enter flat discount (double):");
-                type = DiscountType.Discount;
-                break;
-            case 1:
-                tui("Enter percent discount (double 0.0-1.0):");
-                type = DiscountType.PercentDiscount;
-                break;
-            default:
-                throw new IllegalArgumentException("Invalid discount type.");
-        }
-        double discount = scanner.nextDouble();
-        scanner.nextLine();
+        tui("Enter customer date of birth:");
+        LocalDateTime birthday = date(scanner);
 
-        tui("Enter expiration date...");
-        LocalDateTime expiration = date(scanner);
+        tui("Enter customer name:");
+        String name = scanner.nextLine();
 
         switch (type) {
-            case Discount:
-                return new Discount(discount, expiration);
-            case PercentDiscount:
-                return new PercentDiscount(discount, expiration);
+            case Customer:
+                return new Customer(birthday, name);
+            case Patient:
+                return new Patient(birthday, name);
         }
-
-        throw new IllegalArgumentException("Cannot instantiate Discount");
+        throw new IllegalArgumentException("Unknown customer type.");
     }
 
-    public static Customer createCustomer(Scanner scanner) {
-        return null;
+    public static Object createPrescription(Scanner scanner) {
+        List<Object> data = new ArrayList<Object>();
+        tui("Enter patient ID to add prescription to:");
+        data.add(scanner.nextLine());
+
+        tui("Enter the amount of items in the prescription:");
+        int items = scanner.nextInt();
+        scanner.nextLine();
+
+        List<Stock> prescription_items = new ArrayList<Stock>();
+        for (int i = 0; i < items; i++) {
+            prescription_items.add(createStock(scanner));
+        }
+
+        tui("Enter the time between refills in days:");
+        int days = scanner.nextInt();
+        scanner.nextLine();
+
+        data.add(new Prescription(
+            prescription_items,
+            Duration.ofDays(days)
+        ));
+
+        return data;
     }
 
     public static Order createOrder(Scanner scanner) {
-        return null;
+        tui("Enter the amount of items in the order:");
+        int items = scanner.nextInt();
+        scanner.nextLine();
+
+        List<Stock> order_items = new ArrayList<Stock>();
+        for (int i = 0; i < items; i++) {
+            order_items.add(createStock(scanner));
+        }
+
+        return new Order(order_items);
     }
 
     public static AutoOrder createAutoOrder(Scanner scanner) {
-        return null;
+        tui("Enter the amount of items in the auto order:");
+        int items = scanner.nextInt();
+        scanner.nextLine();
+
+        List<Stock> order_items = new ArrayList<Stock>();
+        HashMap<UUID, MinStock> quantities = new HashMap<UUID, MinStock>();
+        for (int i = 0; i < items; i++) {
+            Stock item = createStock(scanner);
+            order_items.add(item);
+
+            tui("Enter the quantity to order:");
+            int order_quantity = scanner.nextInt();
+            scanner.nextLine();
+
+            tui("Enter the minimum stock to initiate the auto order:");
+            int minimum_quantity = scanner.nextInt();
+            scanner.nextLine();
+
+            MinStock min_stock = new MinStock(minimum_quantity, order_quantity);
+            quantities.put(item.getID(), min_stock);
+        }
+        Order order = new Order(order_items);
+        return new AutoOrder(quantities, order);
     }
 
     public static String changePassword(Scanner scanner) {
         tui("Enter current password:");
+        return scanner.nextLine();
+    }
+
+    public static String removeAccount(Scanner scanner) {
+        tui("Enter account ID to remove:");
+        return scanner.nextLine();
+    }
+
+    public static String removeDiscount(Scanner scanner) {
+        tui("Enter stock ID to remove discount from:");
+        return scanner.nextLine();
+    }
+
+    public static String removeStock(Scanner scanner) {
+        tui("Enter drug ID to remove:");
+        return scanner.nextLine();
+    }
+
+    public static String removeCustomer(Scanner scanner) {
+        tui("Enter customer ID to remove:");
+        return scanner.nextLine();
+    }
+
+    public static String removeOrder(Scanner scanner) {
+        tui("Enter order ID to remove:");
+        return scanner.nextLine();
+    }
+
+    public static String removeAutoOrder(Scanner scanner) {
+        tui("Enter auto order ID to remove");
         return scanner.nextLine();
     }
 }
@@ -244,11 +312,11 @@ public class Main {
             case CreateDiscount:
                 return TUI.createDiscountUUID(scanner);
             case CreateCustomer:
-                break;
+                return TUI.createCustomer(scanner);
             case CreateOrder:
-                break;
+                return TUI.createOrder(scanner);
             case CreateAutoOrder:
-                break;
+                return TUI.createAutoOrder(scanner);
             case ChangePassword:
                 return TUI.changePassword(scanner);
             case GetAccounts:
@@ -262,17 +330,17 @@ public class Main {
             case GetCustomers:
                 return Response.Ok;
             case RemoveAccount:
-                break;
-            case RemoveAutoOrder:
-                break;
-            case RemoveCustomer:
-                break;
+                return TUI.removeAccount(scanner);
             case RemoveDiscount:
-                break;
-            case RemoveDrug:
-                break;
+                return TUI.removeDiscount(scanner);
+            case RemoveStock:
+                return TUI.removeStock(scanner);
+            case RemoveCustomer:
+                return TUI.removeCustomer(scanner);
             case RemoveOrder:
-                break;
+                return TUI.removeOrder(scanner);
+            case RemoveAutoOrder:
+                return TUI.removeAutoOrder(scanner);
         }
 
         Log.error("Invalid request data.");
@@ -384,28 +452,5 @@ public class Main {
         }
 
         scanner.close();
-
-        // InventoryControl inventory_control = new InventoryControl();
-        //
-        // LocalDateTime test_date = LocalDateTime.of(2024, 11, 8, 0, 0);
-        // Discount test_discount = new PercentDiscount(0.50);
-        // Drug test_prescription = new Drug(55, 2, 33.12, "Test Pres", test_discount, true,
-        // "Prestest",
-        // test_date);
-        //
-        // inventory_control.addStock(test_prescription);
-        //
-        // System.out.println("TEST PRESCRIPTION:\n" + test_prescription);
-        // System.out.println("INVENTORY:\n" + inventory_control.inventory);
-        // System.out.println("ORDERS:\n" + inventory_control.orders);
-        //
-        // AutoOrder auto_order = new AutoOrder(15, 100, "Test Pres");
-        // inventory_control.addAutoOrder(auto_order);
-        //
-        // // RUNS EVERY BACKEND CYCLE
-        // inventory_control.updateAutoOrders();
-        // inventory_control.updateDeliveries();
-        //
-        // System.out.println("INVENTORY END:\n" + inventory_control.inventory);
     }
 }
