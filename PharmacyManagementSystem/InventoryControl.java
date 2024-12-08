@@ -68,9 +68,9 @@ public class InventoryControl {
 
         if (stock == null) {
             this.stock.put(item.getID(), item);
-            return;
-        } 
-        stock.setQuantity(stock.getQuantity() + item.getQuantity());
+        } else stock.setQuantity(
+            stock.getQuantity() + item.getQuantity()
+        );
     }
 
     /**
@@ -92,18 +92,18 @@ public class InventoryControl {
      * @param order
      */
     public void deliverOrder(final Order order) {
-        for (final Stock item : order.getOrderItems()) {
-            Stock stock = this.stock.get(item.getID());
-            if (stock == null) {
-                addStock(item.clone());
+        for (final Stock order_stock : order.getOrderItems()) {
+            Stock inventory_stock = this.stock.get(order_stock.getID());
+            if (inventory_stock == null) {
+                addStock(order_stock.clone());
             }
             else {
-                if (stock instanceof Drug) {
+                if (inventory_stock instanceof Drug) {
                     // TODO: Handle drug case... need to update expiration dates
                 }
-                Stock new_stock = item.clone();
+                Stock new_stock = order_stock.clone();
                 new_stock.setQuantity(
-                    new_stock.getQuantity() + item.getQuantity()
+                    new_stock.getQuantity() + inventory_stock.getQuantity()
                 );
             }
         }
@@ -124,15 +124,14 @@ public class InventoryControl {
     }
 
     /**
-     * @param order_item
-     * @param order_quantity
+     * @param new_order
      */
     public void createUniqueOrder(final Order new_order) {
         for (UUID key : this.orders.keySet()) {
             Order order = this.orders.get(key);
             for (Stock order_item : order.getOrderItems()) {
                 for (final Stock new_item : new_order.getOrderItems()) {
-                    if (new_item.getName() == order_item.getName()) {
+                    if (new_item.getID().equals(order_item.getID())) {
                         // Return early if the item is already ordered
                         return;
                     }
@@ -208,7 +207,7 @@ public class InventoryControl {
             if (stock instanceof Drug) {
                 Drug drug = (Drug) stock;
                 // TODO: Maybe this is supposed to be manual??
-                if (drug.getExpirationDate().isAfter(LocalDateTime.now())) {
+                if (drug.getExpirationDate().isBefore(LocalDateTime.now())) {
                     removals.add(key);
                 }
             }
