@@ -206,6 +206,120 @@ public class Backend {
         } else return Response.BadRequest;
     }
 
+    public Response updateAccount(final List<Object> data) {
+        UUID id = (UUID) data.get(0);
+        Account account = this.accounts.get(id);
+        if (account == null) return Response.BadRequest;
+
+        LocalDateTime birthday = (LocalDateTime) data.get(1);
+        if (birthday != null) account.setBirthday(birthday);
+
+        String name = (String) data.get(2);
+        if (name != null) account.setName(name);
+
+        String login = (String) data.get(3);
+        if (login != null) account.setLogin(login);
+
+        PermissionLevel permissions = (PermissionLevel) data.get(4);
+        if (permissions != null) account.setPermissions(permissions);
+
+        return Response.Ok;
+    }
+    public Response updateStock(final List<Object> data) {
+        UUID id = (UUID) data.get(0);
+        Stock stock = this.inventory.findStock(id);
+        if (stock == null) {
+            Log.error("Invalid stock ID.");
+            return Response.BadRequest;
+        }
+
+        if (data.get(1) != null) {
+            int quantity = (int) data.get(1);
+            stock.setQuantity(quantity);
+        }
+
+        if (data.get(2) != null) {
+            double price = (double) data.get(2);
+            stock.setPrice(price);
+        }
+
+        String name = (String) data.get(3);
+        if (name != null) stock.setName(name);
+
+        Discount discount = (Discount) data.get(4);
+        if (discount != null) stock.setDiscount(discount);
+
+        return Response.Ok;
+    }
+    public Response updateDrug(final List<Object> data) {
+        UUID id = (UUID) data.get(0);
+        Drug drug = (Drug) this.inventory.findStock(id);
+        if (drug == null) {
+            Log.error("Invalid stock ID.");
+            return Response.BadRequest;
+        }
+
+        if (data.get(1) != null) {
+            int quantity = (int) data.get(1);
+            drug.setQuantity(quantity);
+        }
+
+        if (data.get(2) != null) {
+            double price = (double) data.get(2);
+            drug.setPrice(price);
+        }
+
+        String name = (String) data.get(3);
+        if (name != null) drug.setName(name);
+
+        Discount discount = (Discount) data.get(4);
+        if (discount != null) drug.setDiscount(discount);
+
+        if (data.get(5) != null) {
+            boolean is_controlled = (boolean) data.get(5);
+            drug.setIsControlled(is_controlled);
+        }
+
+        String drug_name = (String) data.get(6);
+        if (drug_name != null) drug.setDrugName(drug_name);
+
+        LocalDateTime expiration_date = (LocalDateTime) data.get(7);
+        if (expiration_date != null) drug.setExpirationDate(expiration_date);
+
+        return Response.Ok;
+    }
+    public Response updateCustomer(final List<Object> data) {
+        UUID id = (UUID) data.get(0);
+        Customer customer = this.customers.get(id);
+        if (customer == null) {
+            Log.error("Invalid customer ID.");
+            return Response.BadRequest;
+        }
+
+        LocalDateTime birthday = (LocalDateTime) data.get(1);
+        String name = (String) data.get(2);
+        LocalDateTime last_access = (LocalDateTime) data.get(3);
+        
+        return Response.Ok;
+    }
+    public Response updateOrder(final List<Object> data) {
+        UUID id = (UUID) data.get(0);
+        Order order = this.inventory.getOrders().get(id);
+        if (order == null) {
+            Log.error("Invalid order ID.");
+            return Response.BadRequest;
+        };
+
+        LocalDateTime shipment_date = (LocalDateTime) data.get(1);
+        if (shipment_date != null) order.setShipmentDate(shipment_date);
+
+        return Response.Ok;
+    }
+    public Response updateAutoOrder(final List<Object> data) {
+        return Response.Ok;
+    }
+
+
     /**
      * @param login
      * @return
@@ -367,10 +481,6 @@ class Customer {
         return id;
     }
 
-    public void setID(final UUID id) {
-        this.id = id;
-    }
-
     public int getAge() {
         return Period.between(this.birthday.toLocalDate(), LocalDate.now()).getYears();
     }
@@ -474,10 +584,6 @@ class Purchase {
         return id;
     }
 
-    public void setID(final UUID id) {
-        this.id = id;
-    }
-
     public LocalDateTime getPurchaseDate() {
         return purchase_date;
     }
@@ -546,10 +652,6 @@ class Account {
     // Getters/Setters
     public UUID getID() {
         return id;
-    }
-
-    public void setID(final UUID id) {
-        this.id = id;
     }
 
     public int getAge() {

@@ -264,6 +264,146 @@ class TUI {
         tui("Enter account ID to unlock:");
         return scanner.nextLine();
     }
+
+    private static Object getField(Scanner scanner, Object field) {
+        if (field.equals(String.class)) {
+            return scanner.nextLine();
+        }
+        else if (field.equals(LocalDateTime.class)) {
+            return date(scanner);
+        }
+        else if (field.equals(Boolean.class)) {
+            boolean val = scanner.nextBoolean();
+            scanner.nextLine();
+            return Boolean.valueOf(val);
+        }
+        else if (field.equals(Integer.class)) {
+            int val = scanner.nextInt();
+            scanner.nextLine();
+            return Integer.valueOf(val);
+        }
+        else if (field.equals(Double.class)) {
+            double val = scanner.nextDouble();
+            scanner.nextLine();
+            return Double.valueOf(val);
+        }
+        else if (field.equals(PermissionLevel.class)) {
+            return enumOption(scanner, PermissionLevel.class);
+        }
+        else if (field.equals(Discount.class)) {
+            return createDiscount(scanner);
+        }
+        else {
+            Log.error("Unknown field: " + field.getClass());
+            return null;
+        }
+    }
+
+    private static Object updateField(Scanner scanner, Object field, String name) {
+        tui("Would you like to update " + name + "? (true / false)");
+        boolean update = scanner.nextBoolean();
+        scanner.nextLine();
+        tui("Enter " + name + ":");
+        if (update) return getField(scanner, field);
+
+        return null;
+    }
+
+    public static List<Object> updateAccount(Scanner scanner) {
+        Object field;
+        tui("Enter account ID to update:");
+        UUID id = UUID.fromString(scanner.nextLine());
+
+        LocalDateTime date = (LocalDateTime) updateField(
+                scanner,
+                LocalDateTime.class,
+                "birthday"
+                );
+        String name = (String) updateField(scanner, String.class, "name");
+        String login = (String) updateField(scanner, String.class, "login");
+        PermissionLevel permissions = (PermissionLevel) updateField(
+                scanner,
+                PermissionLevel.class,
+                "permissions"
+                );
+
+        List<Object> data = new ArrayList<>();
+        data.add(id);
+        data.add(date);
+        data.add(name);
+        data.add(permissions);
+
+        return data;
+    }
+    public static List<Object> updateStock(Scanner scanner) {
+        tui("Enter stock ID to update:");
+        UUID id = UUID.fromString(scanner.nextLine());
+
+        Integer quantity = (Integer) updateField(scanner, Integer.class, "quantity");
+        Double price = (Double) updateField(scanner, Double.class, "quantity");
+        String name = (String) updateField(scanner, String.class, "name");
+        Discount discount = (Discount) updateField(scanner, Discount.class, "discount");
+
+        List<Object> data = new ArrayList<>();
+        data.add(id);
+        data.add(quantity);
+        data.add(price);
+        data.add(name);
+
+        return data;
+    }
+    public static List<Object> updateDrug(Scanner scanner) {
+        tui("Enter stock ID to update:");
+        UUID id = UUID.fromString(scanner.nextLine());
+
+        Integer quantity = (Integer) updateField(scanner, Integer.class, "quantity");
+        Double price = (Double) updateField(scanner, Double.class, "quantity");
+        String name = (String) updateField(scanner, String.class, "name");
+        Discount discount = (Discount) updateField(scanner, Discount.class, "discount");
+        Boolean is_controlled = (Boolean) updateField(scanner, Boolean.class, "is_controlled");
+        String drug_name = (String) updateField(scanner, String.class, "drug name");
+        LocalDateTime expiration_date = (LocalDateTime) updateField(scanner, LocalDateTime.class, "expiration date");
+
+        List<Object> data = new ArrayList<>();
+        data.add(id);
+        data.add(quantity);
+        data.add(price);
+        data.add(name);
+        data.add(discount);
+        data.add(is_controlled);
+        data.add(drug_name);
+        data.add(expiration_date);
+
+        return data;
+    }
+    public static List<Object> updateCustomer(Scanner scanner) {
+        tui("Enter customer ID to update:");
+        UUID id = UUID.fromString(scanner.nextLine());
+
+        LocalDateTime birthday = (LocalDateTime) updateField(scanner, LocalDateTime.class, "birthday");
+        String name = (String) updateField(scanner, String.class, "name");
+        LocalDateTime last_access = (LocalDateTime) updateField(scanner, LocalDateTime.class, "last access");
+
+        List<Object> data = new ArrayList<>();
+        data.add(id);
+        data.add(birthday);
+        data.add(name);
+        data.add(last_access);
+
+        return data;
+    }
+    public static List<Object> updateOrder(Scanner scanner) {
+        tui("Enter order ID to update:");
+        UUID id = UUID.fromString(scanner.nextLine());
+
+        LocalDateTime shipment_date = (LocalDateTime) updateField(scanner, LocalDateTime.class, "shipment date");
+
+        List<Object> data = new ArrayList<>();
+        data.add(id);
+        data.add(shipment_date);
+
+        return data;
+    }
 }
 
 public class Main {
@@ -346,6 +486,14 @@ public class Main {
                 return TUI.removeNotification(scanner);
             case UnlockAccount:
                 return TUI.unlockAccount(scanner);
+            case UpdateAccount:
+                return TUI.updateAccount(scanner);
+            case UpdateStock:
+                return TUI.updateStock(scanner);
+            case UpdateCustomer:
+                return TUI.updateCustomer(scanner);
+            case UpdateOrder:
+                return TUI.updateOrder(scanner);
         }
 
         Log.error("Invalid request data.");

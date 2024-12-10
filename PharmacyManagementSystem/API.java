@@ -1,8 +1,6 @@
 package PharmacyManagementSystem;
 
 import java.util.List;
-
-// TODO: RemoveNotification
 enum Request {
     Login,
     Logout,
@@ -28,7 +26,11 @@ enum Request {
     RemoveAutoOrder,
     RemoveNotification,
     UnlockAccount,
-    // TODO: Modify... (all)
+    UpdateAccount,
+    UpdateStock,
+    UpdateDrug,
+    UpdateCustomer,
+    UpdateOrder,
 }
 
 enum Response {
@@ -54,7 +56,8 @@ public class API {
      * @param request
      * @param data
      */
-    public Response receive(final Request request, Object data) {
+    @SuppressWarnings("unchecked")
+	public Response receive(final Request request, Object data) {
         switch (request) {
             case Login:
                 return backend.checkLocked((String) data);
@@ -134,12 +137,27 @@ public class API {
                 if (!backend.auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
                 return backend.removeAutoOrder((String) data);
             case RemoveNotification:
-                if (backend.getLoggedIn() == null) return Response.Forbidden;
+                if (backend.getLoggedIn() == null) return Response.Unauthorized;
 
                 return backend.removeNotification((int) data);
             case UnlockAccount:
                 if (!backend.auth(PermissionLevel.Admin)) return Response.Forbidden;
                 return backend.unlockAccount((String) data);
+            case UpdateAccount:
+                if (!backend.auth(PermissionLevel.Admin)) return Response.Forbidden;
+                return backend.updateAccount((List<Object>) data);
+            case UpdateStock:
+                if (!backend.auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
+                return backend.updateStock((List<Object>) data);
+            case UpdateDrug:
+                if (!backend.auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
+                return backend.updateDrug((List<Object>) data);
+            case UpdateCustomer:
+                if (!backend.auth(PermissionLevel.Pharmacist)) return Response.Forbidden;
+                return backend.updateCustomer((List<Object>) data);
+            case UpdateOrder:
+                if (!backend.auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
+                return backend.updateOrder((List<Object>) data);
         }
 
         return Response.NotFound;

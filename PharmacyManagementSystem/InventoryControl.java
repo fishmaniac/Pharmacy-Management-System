@@ -69,7 +69,7 @@ public class InventoryControl {
             Stock stock = this.getStock().get(key);
             if (stock instanceof Drug) {
                 Drug drug = (Drug) stock;
-                if (drug.getExpirationDate().isAfter(LocalDateTime.now())) {
+                if (drug.getExpirationDate().isBefore(LocalDateTime.now())) {
                     notifications.add(
                             new Notification(
                                     PermissionLevel.PharmacyManager, "Drug is expired: " + drug));
@@ -88,6 +88,10 @@ public class InventoryControl {
             }
         }
         return notifications.size() == 0 ? null : notifications;
+    }
+
+    public Stock findStock(UUID id) {
+        return this.stock.get(id);
     }
 
     // Getters/Setters
@@ -302,21 +306,16 @@ class Stock implements Cloneable {
      */
     public Stock(
             final int quantity, final double price, final String name, final Discount discount) {
-        // TODO: Assign global ID
-        this.id = UUID.nameUUIDFromBytes(name.getBytes());
         this.quantity = quantity;
         this.price = price;
         this.discount = discount;
         this.name = name;
+        createID();
     }
 
     // Getters/Setters
     public UUID getID() {
         return id;
-    }
-
-    public void setID(final UUID id) {
-        this.id = id;
     }
 
     public int getQuantity() {
@@ -356,6 +355,7 @@ class Stock implements Cloneable {
 
     public void setName(final String name) {
         this.name = name;
+        createID();
     }
 
     // Override Methods
@@ -381,6 +381,9 @@ class Stock implements Cloneable {
                 + ", Name: "
                 + this.getName()
                 + "]";
+    }
+    private void createID() {
+        this.id = UUID.nameUUIDFromBytes(name.getBytes());
     }
 }
 
@@ -409,10 +412,10 @@ class Drug extends Stock {
             final String drug_name,
             final LocalDateTime expiration_date) {
         super(quantity, price, name, discount);
-        this.id = UUID.nameUUIDFromBytes((name + expiration_date).getBytes());
         this.is_controlled = is_controlled;
         this.drug_name = drug_name;
         this.expiration_date = expiration_date;
+        createID();
     }
 
     // Getters/Setters
@@ -430,6 +433,7 @@ class Drug extends Stock {
 
     public void setDrugName(final String drug_name) {
         this.drug_name = drug_name;
+        createID();
     }
 
     public LocalDateTime getExpirationDate() {
@@ -438,6 +442,7 @@ class Drug extends Stock {
 
     public void setExpirationDate(final LocalDateTime expiration_date) {
         this.expiration_date = expiration_date;
+        createID();
     }
 
     // Override Methods
@@ -457,13 +462,17 @@ class Drug extends Stock {
                 + this.expiration_date
                 + "]";
     }
+
+    private void createID() {
+        this.id = UUID.nameUUIDFromBytes((name + drug_name + expiration_date).getBytes());
+    }
 }
 
 class Order {
     // Data Members
-    private final UUID order_id;
-    private final List<Stock> order_items;
-    private final LocalDateTime shipment_date;
+    private UUID order_id;
+    private List<Stock> order_items;
+    private LocalDateTime shipment_date;
 
     // Constructors
     /**
@@ -500,6 +509,10 @@ class Order {
         return this.shipment_date;
     }
 
+    public void setShipmentDate(LocalDateTime shipment_date) {
+        this.shipment_date = shipment_date;
+    }
+
     public void addItem(final Stock item) {
         this.order_items.add(item);
     }
@@ -531,10 +544,6 @@ class AutoOrder {
 
     public UUID getID() {
         return id;
-    }
-
-    public void setID(UUID id) {
-        this.id = id;
     }
 
     public HashMap<UUID, MinStock> getQuantities() {
