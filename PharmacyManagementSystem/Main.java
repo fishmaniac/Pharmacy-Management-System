@@ -11,8 +11,6 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.UUID;
 
-
-
 class TUI {
     private static void tui(String message) {
         Log.tui(message);
@@ -180,10 +178,7 @@ class TUI {
         int days = scanner.nextInt();
         scanner.nextLine();
 
-        data.add(new Prescription(
-            prescription_items,
-            Duration.ofDays(days)
-        ));
+        data.add(new Prescription(prescription_items, Duration.ofDays(days)));
 
         return data;
     }
@@ -258,11 +253,17 @@ class TUI {
         return scanner.nextLine();
     }
 
+    public static int removeNotification(Scanner scanner) {
+        tui("Enter the notification index to remove:");
+        int index = scanner.nextInt();
+        scanner.nextLine();
+        return index;
+    }
+
     public static String unlockAccount(Scanner scanner) {
         tui("Enter account ID to unlock:");
         return scanner.nextLine();
     }
-
 }
 
 public class Main {
@@ -327,6 +328,8 @@ public class Main {
                 return Response.Ok;
             case GetCustomers:
                 return Response.Ok;
+            case GetNotifications:
+                return Response.Ok;
             case RemoveAccount:
                 return TUI.removeAccount(scanner);
             case RemoveDiscount:
@@ -339,6 +342,8 @@ public class Main {
                 return TUI.removeOrder(scanner);
             case RemoveAutoOrder:
                 return TUI.removeAutoOrder(scanner);
+            case RemoveNotification:
+                return TUI.removeNotification(scanner);
             case UnlockAccount:
                 return TUI.unlockAccount(scanner);
         }
@@ -347,10 +352,8 @@ public class Main {
         return null;
     }
 
-    private static Object responseData(Scanner scanner, Backend backend, Response response) {
-        List<Object> data = new ArrayList<>();
+    private static Object responseData(Scanner scanner, Response response) {
         String text = null;
-        String temp = null;
 
         switch (response) {
             case FirstLogin:
@@ -388,7 +391,7 @@ public class Main {
         return Response.NotFound;
     }
 
-    private static void request(Scanner scanner, Backend backend, int input) {
+    private static void request(Scanner scanner, API api, int input) {
         if (input > Request.values().length - 1 || input < 0) {
             throw new IllegalArgumentException("Invalid request.");
         }
@@ -397,10 +400,10 @@ public class Main {
         Object data = requestData(scanner, request);
         Log.trace("DATA: " + data);
 
-        Response response = backend.receive(request, data);
+        Response response = api.receive(request, data);
 
-        data = responseData(scanner, backend, response);
-        backend.send(response, data);
+        data = responseData(scanner, response);
+        api.send(response, data);
     }
 
     int input(Scanner scanner) {
@@ -411,15 +414,15 @@ public class Main {
             } catch (InputMismatchException e) {
                 tui("Invalid request.");
                 scanner.nextLine();
-            }
-            finally {
+            } finally {
                 scanner.nextLine();
             }
         }
     }
 
     public static void main(String[] args) {
-        Backend backend = new Backend();
+        Backend backend = Backend.get();
+        API api = new API();
         tui("Welcome to the Pharmacy Management System.");
 
         Scanner scanner = new Scanner(System.in);
@@ -432,12 +435,11 @@ public class Main {
         while (request != -1) {
             try {
                 backend.update();
-                request(scanner, backend, request);
+                request(scanner, api, request);
             } catch (Exception e) {
                 Log.error("Exception in Main: " + e.getMessage());
                 e.printStackTrace();
-            }
-            finally {
+            } finally {
                 while (true) {
                     try {
                         requests();

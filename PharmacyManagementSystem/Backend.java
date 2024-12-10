@@ -9,62 +9,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
-enum Request {
-    Login,
-    Logout,
-    CreateAccount,
-    CreateStock,
-    CreateDiscount,
-    CreateCustomer,
-    CreatePrescription,
-    CreateOrder,
-    CreateAutoOrder,
-    ChangePassword,
-    GetAccounts,
-    GetInventory,
-    GetCustomers,
-    GetOrders,
-    GetAutoOrders,
-    RemoveAccount,
-    RemoveDiscount,
-    RemoveStock,
-    RemoveCustomer,
-    RemoveOrder,
-    RemoveAutoOrder,
-    UnlockAccount,
-}
-
-enum Response {
-    FirstLogin,
-    GetPassword,
-    NewPassword,
-    Ok,
-    BadRequest,
-    Unauthorized,
-    Forbidden,
-    NotFound,
-}
-
-enum CustomerType {
-    Customer,
-    Patient,
-}
-
-enum DiscountType {
-    FlatDiscount,
-    PercentDiscount,
-}
-
-enum Status {
-    Success,
-    Fail,
-}
-
-/** {@link Backend} */
+/**
+ * The {@link Backend} is a singleton class that is responsible for managing the core functionality
+ * of the Pharmacy Management system. The {@link #get()} method is used to retrieve the backend
+ * instance.
+ */
 public class Backend {
-    private InventoryControl inventory;
+    private static Backend backend;
+    public InventoryControl inventory;
     private HashMap<UUID, Account> accounts;
+
     private HashMap<UUID, Customer> customers;
+
     private Account logging_in;
     private Account logged_in;
 
@@ -76,164 +32,69 @@ public class Backend {
         initAdmin();
     }
 
+    public static Backend get() {
+        if (backend == null) {
+            backend = new Backend();
+        }
+        return backend;
+    }
 
     public void update() {
         this.inventory.updateAutoOrders();
         this.inventory.updateDeliveries();
-        this.inventory.updateExpired();
+        sendNotification(this.inventory.updateExpired());
         updateCustomers();
     }
 
-    /**
-     * @param request
-     * @param data
-     */
-    // Would be from front end (maybe use CLI input)
-    public Response receive(final Request request, Object data) {
-        switch (request) {
-            case Login:
-                return checkLocked((String) data);
-            case Logout:
-                return logout();
-            case CreateAccount:
-                if (!auth(PermissionLevel.Admin)) return Response.Forbidden;
-                return createAccount((Account) data);
-            case CreateStock:
-                if (!auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
-                this.inventory.addStock((Stock) data);
-
-                return Response.Ok;
-            case CreateDiscount:
-                if (!auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
-                return createDiscount((List<Object>) data);
-            case CreateCustomer:
-                if (!auth(PermissionLevel.Cashier)) return Response.Forbidden;
-                return createCustomer((Customer) data);
-            case CreatePrescription:
-                if (!auth(PermissionLevel.Pharmacist)) return Response.Forbidden;
-                return createPrescription((List<Object>) data);
-            case CreateOrder:
-                if (!auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
-                return createOrder((Order) data);
-            case CreateAutoOrder:
-                if (!auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
-                return createAutoOrder((AutoOrder) data);
-            case ChangePassword:
-                if (this.logged_in == null) return Response.Unauthorized;
-                return changePassword((String) data);
-            case GetInventory:
-                if (!auth(PermissionLevel.PharmacyTechnician)) return Response.Forbidden;
-
-                Log.tui("Inventory: " + this.inventory.getStock());
-                return Response.Ok;
-            case GetOrders:
-                if (!auth(PermissionLevel.PharmacyTechnician)) return Response.Forbidden;
-
-                Log.tui("Orders: " + this.inventory.getOrders());
-                return Response.Ok;
-            case GetAutoOrders:
-                if (!auth(PermissionLevel.PharmacyTechnician)) return Response.Forbidden;
-
-                Log.tui("Auto Orders: " + this.inventory.getAutoOrders());
-                return Response.Ok;
-            case GetAccounts:
-                if (!auth(PermissionLevel.PharmacyTechnician)) return Response.Forbidden;
-
-                Log.tui("Accounts: " + this.accounts);
-                return Response.Ok;
-            case GetCustomers:
-                if (!auth(PermissionLevel.PharmacyTechnician)) return Response.Forbidden;
-
-                Log.tui("Patients: " + this.customers);
-                return Response.Ok;
-            case RemoveAccount:
-                if (!auth(PermissionLevel.Admin)) return Response.Forbidden;
-                return removeAccount((String) data);
-            case RemoveDiscount:
-                if (!auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
-                return removeDiscount((String) data);
-            case RemoveStock:
-                if (!auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
-                return removeStock((String) data);
-            case RemoveCustomer:
-                if (!auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
-                return removeCustomer((String) data);
-            case RemoveOrder:
-                if (!auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
-                return removeOrder((String) data);
-            case RemoveAutoOrder:
-                if (!auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
-                return removeAutoOrder((String) data);
-            case UnlockAccount:
-                if (!auth(PermissionLevel.Admin)) return Response.Forbidden;
-                return unlockAccount((String) data);
-        }
-
-        return Response.NotFound;
+    public HashMap<UUID, Account> getAccounts() {
+        return accounts;
     }
 
-    /**
-     * @param response
-     * @param data
-     */
-    public void send(final Response response, Object data) {
-        Account logging_in = getLoggingIn();
-        Account logged_in = getLoggedIn();
+    public HashMap<UUID, Customer> getCustomers() {
+        return customers;
+    }
 
-        if (data == null) {
-            Log.error("Null response data: " + response);
-            return;
-        }
+    public Account getLoggingIn() {
+        return logging_in;
+    }
 
-        switch (response) {
-            case FirstLogin:
-                logging_in.setPassword((String) data);
-                logging_in.setFirstLogin(false);
-                break;
-            case GetPassword:
-                login((String) data);
-                break;
-            case NewPassword:
-                logged_in.setPassword((String) data);
-                logout();
+    public Account getLoggedIn() {
+        return logged_in;
+    }
+
+    public void login(String data) {
+        UUID key = UUID.nameUUIDFromBytes(data.getBytes());
+        if (this.logging_in.getPassword().equals(key)) {
+            setLoggedIn(this.logging_in);
+            setLoggingIn(null);
+            this.logged_in.setFailureAttempts(0);
+
+            Log.info(
+                    "Welcome "
+                            + this.logged_in.getName()
+                            + ". You are "
+                            + this.logged_in.getAge()
+                            + " years old.");
+            this.logged_in.printNotifications();
+        } else {
+            loginFailed(this.logging_in);
+            setLoggingIn(null);
+
+            Log.info("Login failed.");
         }
     }
 
-    private void updateCustomers() {
-        for (UUID id : this.customers.keySet()) {
-            if (
-                this.customers.get(id).last_access.isBefore(
-                    LocalDateTime.now().minusYears(5)
-                )
-            ) {
-                this.customers.remove(id);
-            }
-        }
-    }
+    public Response logout() {
+        this.setLoggedIn(null);
+        Log.info("Logged out.");
 
-    private void initAdmin() {
-        Account admin =
-                new Account(
-                        LocalDateTime.of(1970, 1, 1, 0, 0),
-                        "Admin",
-                        "admin",
-                        PermissionLevel.Admin);
-        admin.setFirstLogin(false);
-        admin.setPassword("admin");
-
-        this.accounts.put(admin.getLogin(), admin);
-    }
-
-    private boolean auth(PermissionLevel required) {
-        Account account = getLoggedIn();
-
-        return account != null && account.getPermissions().ordinal() >= required.ordinal();
+        return Response.Ok;
     }
 
     /**
      * @param account
      */
-    private Response createAccount(final Account account) {
+    public Response createAccount(final Account account) {
         if (this.accounts.containsKey(account.getLogin())) return Response.Forbidden;
         this.accounts.put(account.getLogin(), account);
         Log.tui("Account created: " + account);
@@ -241,7 +102,7 @@ public class Backend {
         return Response.Ok;
     }
 
-    private Response createDiscount(final List<Object> data) {
+    public Response createDiscount(final List<Object> data) {
         Discount discount = (Discount) data.get(0);
 
         Stock item = this.inventory.getStock().get((UUID) data.get(1));
@@ -256,14 +117,14 @@ public class Backend {
         return Response.Ok;
     }
 
-    private Response createCustomer(final Customer customer) {
+    public Response createCustomer(final Customer customer) {
         if (customer == null) return Response.BadRequest;
         this.customers.put(customer.getID(), customer);
 
         return Response.Ok;
     }
 
-    private Response createPrescription(final List<Object> data) {
+    public Response createPrescription(final List<Object> data) {
         if (data == null) return Response.BadRequest;
 
         Patient customer = (Patient) this.customers.get(data.get(0));
@@ -273,27 +134,27 @@ public class Backend {
         return Response.Ok;
     }
 
-    private Response createOrder(final Order order) {
+    public Response createOrder(final Order order) {
         if (order == null) return Response.BadRequest;
         this.inventory.addOrder(order);
 
         return Response.Ok;
     }
 
-    private Response createAutoOrder(final AutoOrder order) {
+    public Response createAutoOrder(final AutoOrder order) {
         if (order == null) return Response.BadRequest;
         this.inventory.addAutoOrder(order);
 
         return Response.Ok;
     }
 
-    private Response changePassword(final String data) {
+    public Response changePassword(final String data) {
         if (this.getLoggedIn().getPassword().equals((String) data)) {
             return Response.NewPassword;
         } else return Response.Forbidden;
     }
 
-    private Response removeAccount(final String data) {
+    public Response removeAccount(final String data) {
         UUID id = UUID.fromString(data);
         if (id.equals(this.getLoggedIn().getID())) {
             Log.error("Cannot delete current account.");
@@ -303,7 +164,7 @@ public class Backend {
         else return Response.NotFound;
     }
 
-    private Response removeDiscount(final String data) {
+    public Response removeDiscount(final String data) {
         Stock stock = this.inventory.getStock().get(UUID.fromString(data));
         if (stock == null) return Response.NotFound;
 
@@ -311,27 +172,32 @@ public class Backend {
         return Response.Ok;
     }
 
-    private Response removeStock(final String data) {
+    public Response removeStock(final String data) {
         if (this.inventory.getStock().remove(UUID.fromString(data)) != null) return Response.Ok;
         else return Response.NotFound;
     }
 
-    private Response removeCustomer(final String data) {
+    public Response removeCustomer(final String data) {
         if (this.customers.remove(UUID.fromString(data)) != null) return Response.Ok;
         else return Response.NotFound;
     }
 
-    private Response removeOrder(final String data) {
+    public Response removeOrder(final String data) {
         if (this.accounts.remove(UUID.fromString(data)) != null) return Response.Ok;
         else return Response.NotFound;
     }
 
-    private Response removeAutoOrder(final String data) {
+    public Response removeAutoOrder(final String data) {
         if (this.accounts.remove(UUID.fromString(data)) != null) return Response.Ok;
         else return Response.NotFound;
     }
 
-    private Response unlockAccount(final String data) {
+    public Response removeNotification(final int data) {
+        this.getLoggedIn().removeNotification(data);
+        return Response.Ok;
+    }
+
+    public Response unlockAccount(final String data) {
         Account account = this.accounts.get(UUID.fromString(data));
         if (account == null) return Response.NotFound;
         if (account.isLocked()) {
@@ -341,24 +207,10 @@ public class Backend {
     }
 
     /**
-     * @param account
-     */
-    private void loginFailed(Account account) {
-        account.setFailureAttempts(account.getFailureAttempts() + 1);
-        if (account.getFailureAttempts() >= 5) {
-            account.setFailureAttempts(0); // lock the account
-            account.setLocked(true);
-            Log.tui("Account has been locked due to many attempts.");
-        } else {
-            Log.tui("Failed attempts: " + account.getFailureAttempts());
-        }
-    }
-
-    /**
      * @param login
      * @return
      */
-    private Response checkLocked(final String login) {
+    public Response checkLocked(final String login) {
         UUID key = UUID.nameUUIDFromBytes(login.getBytes());
         if (!accounts.containsKey(key)) {
             Log.error("Account does not exist.");
@@ -385,44 +237,64 @@ public class Backend {
         }
     }
 
-    private void login(String data) {
-        UUID key = UUID.nameUUIDFromBytes(data.getBytes());
-        if (this.logging_in.getPassword().equals(key)) {
-            setLoggedIn(this.logging_in);
-            setLoggingIn(null);
-            this.logged_in.setFailureAttempts(0);
-
-            Log.info(
-                    "Welcome "
-                    + this.logged_in.getName()
-                    + ". You are "
-                    + this.logged_in.getAge()
-                    + " years old.");
-        } else {
-            loginFailed(this.logging_in);
-            setLoggingIn(null);
-
-            Log.info("Login failed.");
+    private void sendNotification(List<Notification> new_notifications) {
+        if (new_notifications == null) return;
+        for (Notification notification : new_notifications) {
+            sendNotification(notification);
         }
     }
 
-    private Response logout() {
-        this.setLoggedIn(null);
-        Log.info("Logged out.");
-
-        return Response.Ok;
+    private void sendNotification(Notification new_notification) {
+        if (new_notification == null) return;
+        for (UUID key : this.accounts.keySet()) {
+            Account account = accounts.get(key);
+            if (account.getPermissions().compareTo(new_notification.permission()) >= 0) {
+                for (Notification notification : account.getNotifications()) {
+                    if (notification.equals(new_notification)) return;
+                }
+                account.addNotification(new_notification);
+            }
+        }
     }
 
-    private Account getLoggingIn() {
-        return logging_in;
+    private void updateCustomers() {
+        for (UUID id : this.customers.keySet()) {
+            if (this.customers.get(id).last_access.isBefore(Config.lastCustomerAccessTimeout())) {
+                this.customers.remove(id);
+            }
+        }
+    }
+
+    private void initAdmin() {
+        Account admin = Config.initAdmin();
+        admin.setFirstLogin(false);
+        admin.setPassword("admin");
+
+        this.accounts.put(admin.getLogin(), admin);
+    }
+
+    public boolean auth(PermissionLevel required) {
+        Account account = getLoggedIn();
+
+        return account != null && account.getPermissions().ordinal() >= required.ordinal();
+    }
+
+    /**
+     * @param account
+     */
+    private void loginFailed(Account account) {
+        account.setFailureAttempts(account.getFailureAttempts() + 1);
+        if (account.getFailureAttempts() >= 5) {
+            account.setFailureAttempts(0); // lock the account
+            account.setLocked(true);
+            Log.tui("Account has been locked due to many attempts.");
+        } else {
+            Log.tui("Failed attempts: " + account.getFailureAttempts());
+        }
     }
 
     private void setLoggingIn(Account loggingIn) {
         this.logging_in = loggingIn;
-    }
-
-    private Account getLoggedIn() {
-        return logged_in;
     }
 
     private void setLoggedIn(Account logged_in) {
@@ -469,6 +341,11 @@ class Prescription {
     public void setRefillDuration(final Duration refill_duration) {
         this.refill_duration = refill_duration;
     }
+}
+
+enum CustomerType {
+    Customer,
+    Patient,
 }
 
 class Customer {
@@ -521,16 +398,22 @@ class Customer {
     public void setLastAccess(LocalDateTime time) {
         this.last_access = time;
     }
+
+    // TODO: Update whenever a purchase is made
     public void setLastAccessNow() {
         this.last_access = LocalDateTime.now();
     }
 
     @Override
     public String toString() {
-        return "ID: " + this.getID()
-            + ", Birthday: " + this.getBirthday()
-            + ", Name: " + this.getName()
-            + ", Last access: " + this.getLastAccess();
+        return "ID: "
+                + this.getID()
+                + ", Birthday: "
+                + this.getBirthday()
+                + ", Name: "
+                + this.getName()
+                + ", Last access: "
+                + this.getLastAccess();
     }
 }
 
@@ -542,15 +425,11 @@ class Patient extends Customer {
         super(birthday, name);
     }
 
-    Patient(
-            LocalDateTime birthday,
-            String name,
-            List<Prescription> prescriptions
-           ) {
+    Patient(LocalDateTime birthday, String name, List<Prescription> prescriptions) {
         super(birthday, name);
         this.prescriptions = prescriptions;
         this.prescription_history = this.prescriptions;
-           }
+    }
 
     // Getters/Setters
     public List<Prescription> getPrescriptions() {
@@ -624,6 +503,8 @@ enum PermissionLevel {
     Admin,
 }
 
+record Notification(PermissionLevel permission, String notification) {}
+
 class Account {
     // Data Members
     private boolean first_login;
@@ -636,6 +517,7 @@ class Account {
     private UUID password;
     private List<Purchase> purchases;
     private PermissionLevel permissions;
+    private List<Notification> notifications;
 
     // Constructors
     /**
@@ -654,11 +536,12 @@ class Account {
         this.login = UUID.nameUUIDFromBytes(login.getBytes());
         this.id = this.login;
         this.permissions = permissions;
+        this.notifications = new ArrayList<Notification>();
         // Create password on first login
         this.password = null;
         this.first_login = true;
         Log.audit("Account created: " + this);
-            }
+    }
 
     // Getters/Setters
     public UUID getID() {
@@ -745,17 +628,39 @@ class Account {
         this.permissions = permissions;
     }
 
+    // TODO: Allow account to pick and clear notification
+    public void addNotification(Notification notification) {
+        this.notifications.add(notification);
+    }
+
+    public List<Notification> getNotifications() {
+        return this.notifications;
+    }
+
+    public void printNotifications() {
+        Log.tui("Notifications...");
+        for (int i = 0; i < this.notifications.size(); i++) {
+            Log.tui("[" + i + "]: " + this.notifications.get(i));
+        }
+    }
+
+    public void removeNotification(int index) {
+        if (index < 0 || index >= this.notifications.size()) {
+            Log.tui("Invalid notification index.");
+        } else this.notifications.remove(index);
+    }
+
     @Override
     public String toString() {
         return "ID: "
-            + this.id
-            + ", Birthday: "
-            + this.birthday
-            + ", Name: "
-            + this.name
-            + ", Login: "
-            + this.login
-            + ", Permissions: "
-            + this.permissions;
+                + this.id
+                + ", Birthday: "
+                + this.birthday
+                + ", Name: "
+                + this.name
+                + ", Login: "
+                + this.login
+                + ", Permissions: "
+                + this.permissions;
     }
 }
