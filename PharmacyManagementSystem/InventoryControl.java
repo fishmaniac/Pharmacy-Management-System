@@ -8,30 +8,86 @@ import java.util.UUID;
 
 /** {@link InventoryControl} */
 public class InventoryControl {
-    // TODO: Make private
-    public HashMap<UUID, Stock> stock;
-    public HashMap<UUID, Order> orders;
-    public List<AutoOrder> auto_orders;
+    private HashMap<UUID, Stock> stock;
+    private HashMap<UUID, Order> orders;
+    private List<AutoOrder> auto_orders;
 
     public InventoryControl() {
         this.stock = new HashMap<>();
         this.orders = new HashMap<>();
         this.auto_orders = new ArrayList<>();
-
-        Drug drug =
-                new Drug(
-                        100,
-                        10.50,
-                        "Test Drug Name",
-                        null,
-                        false,
-                        "Test Drug",
-                        LocalDateTime.now().plusWeeks(1));
-        this.stock.put(drug.getID(), drug);
     }
 
-    public Stock findStock(UUID id) {
-        return this.stock.get(id);
+    // Backend Updates API
+    /** */
+    public void updateAutoOrders() {
+        for (final AutoOrder auto_order : this.auto_orders) {
+            List<Stock> new_order_items = new ArrayList<>();
+            for (final Stock auto_stock : auto_order.getOrder().getOrderItems()) {
+                UUID key = auto_stock.getID();
+                MinStock order_stock = auto_order.getQuantities().get(key);
+
+                final Stock inventory_stock = this.stock.get(key);
+                int quantity = 0;
+                if (inventory_stock != null) quantity = inventory_stock.getQuantity();
+                if (quantity < order_stock.minimum_quantity() && !isStockOrdered(auto_stock)) {
+                    Stock order_item = auto_stock.clone();
+
+                    new_order_items.add(order_item);
+                }
+            }
+            if (new_order_items.size() > 0) {
+                final Order order = new Order(new_order_items);
+                Log.audit("Creating order from auto orders: " + order);
+                createUniqueOrder(order);
+            }
+        }
+    }
+
+    /** */
+    public void updateDeliveries() {
+        List<UUID> removals = new ArrayList<>();
+        for (final UUID key : this.orders.keySet()) {
+            final Order order = this.orders.get(key);
+            if (order.getShipmentDate().isBefore(LocalDateTime.now())) {
+                deliverOrder(order);
+                removals.add(key);
+            }
+        }
+        for (UUID key : removals) {
+            this.orders.remove(key);
+        }
+    }
+
+    /**
+     * @return Returns a notification to be sent.
+     */
+    public List<Notification> updateExpired() {
+        // TODO: Update expired prescriptions, stock items, and discounts
+        List<Notification> notifications = new ArrayList<>();
+        for (UUID key : this.getStock().keySet()) {
+            Stock stock = this.getStock().get(key);
+            if (stock instanceof Drug) {
+                Drug drug = (Drug) stock;
+                if (drug.getExpirationDate().isAfter(LocalDateTime.now())) {
+                    notifications.add(
+                            new Notification(
+                                    PermissionLevel.PharmacyManager, "Drug is expired: " + drug));
+                } else if (drug.getExpirationDate().isBefore(Config.expiredNotificationTime())) {
+                    notifications.add(
+                            new Notification(
+                                    PermissionLevel.PharmacyManager,
+                                    "Drug expires in less than 30 days: " + drug));
+                }
+                if (drug.getQuantity() < Config.minDrugQuantity()) {
+                    notifications.add(
+                            new Notification(
+                                    PermissionLevel.PharmacyManager,
+                                    "Drug has less than 120 items remaining: " + drug));
+                }
+            }
+        }
+        return notifications.size() == 0 ? null : notifications;
     }
 
     // Getters/Setters
@@ -68,9 +124,7 @@ public class InventoryControl {
 
         if (stock == null) {
             this.stock.put(item.getID(), item);
-        } else stock.setQuantity(
-            stock.getQuantity() + item.getQuantity()
-        );
+        } else stock.setQuantity(stock.getQuantity() + item.getQuantity());
     }
 
     /**
@@ -89,27 +143,6 @@ public class InventoryControl {
     }
 
     /**
-     * @param order
-     */
-    public void deliverOrder(final Order order) {
-        for (final Stock order_stock : order.getOrderItems()) {
-            Stock inventory_stock = this.stock.get(order_stock.getID());
-            if (inventory_stock == null) {
-                addStock(order_stock.clone());
-            }
-            else {
-                if (inventory_stock instanceof Drug) {
-                    // TODO: Handle drug case... need to update expiration dates
-                }
-                Stock new_stock = order_stock.clone();
-                new_stock.setQuantity(
-                    new_stock.getQuantity() + inventory_stock.getQuantity()
-                );
-            }
-        }
-    }
-
-    /**
      * @param auto_order
      */
     public void addAutoOrder(final AutoOrder auto_order) {
@@ -124,9 +157,28 @@ public class InventoryControl {
     }
 
     /**
+     * @param order
+     */
+    private void deliverOrder(final Order order) {
+        for (final Stock order_stock : order.getOrderItems()) {
+            Stock inventory_stock = this.stock.get(order_stock.getID());
+            if (inventory_stock == null) {
+                addStock(order_stock.clone());
+            } else if (inventory_stock instanceof Drug) {
+                // For Drug we cannot increase quantity due to expiration dates
+                addStock(order_stock.clone());
+            } else {
+                Stock new_stock = order_stock.clone();
+                new_stock.setQuantity(new_stock.getQuantity() + inventory_stock.getQuantity());
+                addStock(new_stock);
+            }
+        }
+    }
+
+    /**
      * @param new_order
      */
-    public void createUniqueOrder(final Order new_order) {
+    private void createUniqueOrder(final Order new_order) {
         for (UUID key : this.orders.keySet()) {
             Order order = this.orders.get(key);
             for (Stock order_item : order.getOrderItems()) {
@@ -144,7 +196,7 @@ public class InventoryControl {
         addOrder(new_order);
     }
 
-    public boolean isStockOrdered(Stock ordered_stock) {
+    private boolean isStockOrdered(Stock ordered_stock) {
         for (UUID key : this.orders.keySet()) {
             for (final Stock stock : this.orders.get(key).getOrderItems()) {
                 if (stock.getID().equals(ordered_stock.getID())) {
@@ -154,68 +206,11 @@ public class InventoryControl {
         }
         return false;
     }
+}
 
-    // Backend Updates API
-    /** */
-    public void updateAutoOrders() {
-        for (final AutoOrder auto_order : this.auto_orders) {
-            List<Stock> new_order_items = new ArrayList<>();
-            for (final Stock auto_stock : auto_order.getOrder().getOrderItems()) {
-                UUID key = auto_stock.getID();
-                MinStock order_stock = auto_order.getQuantities().get(key);
-
-                final Stock inventory_stock = this.stock.get(key);
-                int quantity = 0;
-                if (inventory_stock != null) quantity = inventory_stock.getQuantity();
-
-                if (quantity < order_stock.minimum_quantity()
-                        && !isStockOrdered(auto_stock)) {
-                    Stock order_item = auto_stock.clone();
-
-                    new_order_items.add(order_item);
-                        }
-            }
-            if (new_order_items.size() > 0) {
-                final Order order = new Order(new_order_items);
-                Log.audit("Creating order from auto orders: " + order);
-                createUniqueOrder(order);
-            }
-        }
-    }
-
-    /** */
-    public void updateDeliveries() {
-        List<UUID> removals = new ArrayList<>();
-        for (final UUID key : this.orders.keySet()) {
-            final Order order = this.orders.get(key);
-            if (order.getShipmentDate().isBefore(LocalDateTime.now())) {
-                deliverOrder(order);
-                removals.add(key);
-            }
-        }
-        for (UUID key : removals) {
-            this.orders.remove(key);
-        }
-    }
-
-    /** */
-    public void updateExpired() {
-        // TODO: Update expired prescriptions, stock items, and discounts
-        List<UUID> removals = new ArrayList<>();
-        for (UUID key : this.getStock().keySet()) {
-            Stock stock = this.getStock().get(key);
-            if (stock instanceof Drug) {
-                Drug drug = (Drug) stock;
-                // TODO: Maybe this is supposed to be manual??
-                if (drug.getExpirationDate().isBefore(LocalDateTime.now())) {
-                    removals.add(key);
-                }
-            }
-        }
-        for (UUID key : removals) {
-            this.getStock().remove(key);
-        }
-    }
+enum DiscountType {
+    FlatDiscount,
+    PercentDiscount,
 }
 
 class Discount {
@@ -308,12 +303,12 @@ class Stock implements Cloneable {
     public Stock(
             final int quantity, final double price, final String name, final Discount discount) {
         // TODO: Assign global ID
-        this.id = UUID.randomUUID();
+        this.id = UUID.nameUUIDFromBytes(name.getBytes());
         this.quantity = quantity;
         this.price = price;
         this.discount = discount;
         this.name = name;
-            }
+    }
 
     // Getters/Setters
     public UUID getID() {
@@ -376,16 +371,16 @@ class Stock implements Cloneable {
     @Override
     public String toString() {
         return "[ID: "
-            + this.getID()
-            + ", Quantity: "
-            + this.getQuantity()
-            + ", Price: "
-            + this.getPrice()
-            + ", Discount: "
-            + this.getDiscount()
-            + ", Name: "
-            + this.getName()
-            + "]";
+                + this.getID()
+                + ", Quantity: "
+                + this.getQuantity()
+                + ", Price: "
+                + this.getPrice()
+                + ", Discount: "
+                + this.getDiscount()
+                + ", Name: "
+                + this.getName()
+                + "]";
     }
 }
 
@@ -414,10 +409,11 @@ class Drug extends Stock {
             final String drug_name,
             final LocalDateTime expiration_date) {
         super(quantity, price, name, discount);
+        this.id = UUID.nameUUIDFromBytes((name + expiration_date).getBytes());
         this.is_controlled = is_controlled;
         this.drug_name = drug_name;
         this.expiration_date = expiration_date;
-            }
+    }
 
     // Getters/Setters
     public boolean getIsControlled() {
@@ -453,13 +449,13 @@ class Drug extends Stock {
     @Override
     public String toString() {
         return super.toString()
-            + "-[Controlled: "
-            + this.is_controlled
-            + ", Drug Name: "
-            + this.drug_name
-            + ", Expiration Date: "
-            + this.expiration_date
-            + "]";
+                + "-[Controlled: "
+                + this.is_controlled
+                + ", Drug Name: "
+                + this.drug_name
+                + ", Expiration Date: "
+                + this.expiration_date
+                + "]";
     }
 }
 
@@ -476,7 +472,7 @@ class Order {
     public Order(final List<Stock> order_items) {
         this.order_id = UUID.randomUUID();
         this.order_items = order_items;
-        this.shipment_date = LocalDateTime.now().plusSeconds(45);
+        this.shipment_date = Config.orderDeliveryTime();
     }
 
     /**
@@ -484,7 +480,7 @@ class Order {
      */
     public Order(final Stock order_item) {
         this.order_id = UUID.randomUUID();
-        this.shipment_date = LocalDateTime.now().plusSeconds(45);
+        this.shipment_date = Config.orderDeliveryTime();
 
         final List<Stock> order_items = new ArrayList<>();
         order_items.add(order_item);
@@ -512,11 +508,11 @@ class Order {
     @Override
     public String toString() {
         return "Order ID: "
-            + this.order_id
-            + ", Shipment Date: "
-            + this.shipment_date
-            + ", Items: "
-            + this.order_items;
+                + this.order_id
+                + ", Shipment Date: "
+                + this.shipment_date
+                + ", Items: "
+                + this.order_items;
     }
 }
 
@@ -528,6 +524,7 @@ class AutoOrder {
     private Order order;
 
     AutoOrder(HashMap<UUID, MinStock> quantities, Order order) {
+        this.id = UUID.randomUUID();
         this.quantities = quantities;
         this.order = order;
     }
@@ -558,11 +555,6 @@ class AutoOrder {
 
     @Override
     public String toString() {
-        return "ID: "
-            + this.id
-            + ", Quantities: "
-            + this.quantities
-            + ", Items: "
-            + this.order;
+        return "ID: " + this.id + ", Quantities: " + this.quantities + ", Items: " + this.order;
     }
 }
