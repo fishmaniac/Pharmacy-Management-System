@@ -31,6 +31,8 @@ enum Request {
     UpdateDrug,
     UpdateCustomer,
     UpdateOrder,
+    PurchaseStock,
+    PickupPrescription,
 }
 
 enum Response {
@@ -158,6 +160,12 @@ public class API {
             case UpdateOrder:
                 if (!backend.auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
                 return backend.updateOrder((List<Object>) data);
+            case PurchaseStock:
+                if (!backend.auth(PermissionLevel.Cashier)) return Response.Forbidden;
+                return backend.purchaseStock((List<Object>) data);
+            case PickupPrescription:
+                if (!backend.auth(PermissionLevel.Cashier)) return Response.Forbidden;
+                return backend.pickupPrescription((List<Object>) data);
         }
 
         return Response.NotFound;
