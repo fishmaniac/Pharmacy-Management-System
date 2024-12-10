@@ -52,6 +52,14 @@ class TUI {
         tui("Enter discount type...");
         DiscountType type = enumOption(scanner, DiscountType.class);
 
+        switch (type) {
+            case FlatDiscount:
+                tui("Enter discount (double):");
+                break;
+            case PercentDiscount:
+                tui("Enter discount (double 0.0-1.0):");
+                break;
+        }
         double discount = scanner.nextDouble();
         scanner.nextLine();
 
@@ -268,32 +276,28 @@ class TUI {
     private static Object getField(Scanner scanner, Object field) {
         if (field.equals(String.class)) {
             return scanner.nextLine();
-        }
-        else if (field.equals(LocalDateTime.class)) {
+        } else if (field.equals(LocalDateTime.class)) {
             return date(scanner);
-        }
-        else if (field.equals(Boolean.class)) {
+        } else if (field.equals(Boolean.class)) {
+            tui("Enter a boolean (true / false):");
             boolean val = scanner.nextBoolean();
             scanner.nextLine();
             return Boolean.valueOf(val);
-        }
-        else if (field.equals(Integer.class)) {
+        } else if (field.equals(Integer.class)) {
             int val = scanner.nextInt();
             scanner.nextLine();
             return Integer.valueOf(val);
-        }
-        else if (field.equals(Double.class)) {
+        } else if (field.equals(Double.class)) {
+            tui("Enter a double:");
+
             double val = scanner.nextDouble();
             scanner.nextLine();
             return Double.valueOf(val);
-        }
-        else if (field.equals(PermissionLevel.class)) {
+        } else if (field.equals(PermissionLevel.class)) {
             return enumOption(scanner, PermissionLevel.class);
-        }
-        else if (field.equals(Discount.class)) {
+        } else if (field.equals(Discount.class)) {
             return createDiscount(scanner);
-        }
-        else {
+        } else {
             Log.error("Unknown field: " + field.getClass());
             return null;
         }
@@ -310,37 +314,31 @@ class TUI {
     }
 
     public static List<Object> updateAccount(Scanner scanner) {
-        Object field;
         tui("Enter account ID to update:");
         UUID id = UUID.fromString(scanner.nextLine());
 
-        LocalDateTime date = (LocalDateTime) updateField(
-                scanner,
-                LocalDateTime.class,
-                "birthday"
-                );
+        LocalDateTime date = (LocalDateTime) updateField(scanner, LocalDateTime.class, "birthday");
         String name = (String) updateField(scanner, String.class, "name");
         String login = (String) updateField(scanner, String.class, "login");
-        PermissionLevel permissions = (PermissionLevel) updateField(
-                scanner,
-                PermissionLevel.class,
-                "permissions"
-                );
+        PermissionLevel permissions =
+                (PermissionLevel) updateField(scanner, PermissionLevel.class, "permissions");
 
         List<Object> data = new ArrayList<>();
         data.add(id);
         data.add(date);
         data.add(name);
+        data.add(login);
         data.add(permissions);
 
         return data;
     }
+
     public static List<Object> updateStock(Scanner scanner) {
         tui("Enter stock ID to update:");
         UUID id = UUID.fromString(scanner.nextLine());
 
         Integer quantity = (Integer) updateField(scanner, Integer.class, "quantity");
-        Double price = (Double) updateField(scanner, Double.class, "quantity");
+        Double price = (Double) updateField(scanner, Double.class, "price (double)");
         String name = (String) updateField(scanner, String.class, "name");
         Discount discount = (Discount) updateField(scanner, Discount.class, "discount");
 
@@ -349,20 +347,23 @@ class TUI {
         data.add(quantity);
         data.add(price);
         data.add(name);
+        data.add(discount);
 
         return data;
     }
+
     public static List<Object> updateDrug(Scanner scanner) {
-        tui("Enter stock ID to update:");
+        tui("Enter drug ID to update:");
         UUID id = UUID.fromString(scanner.nextLine());
 
         Integer quantity = (Integer) updateField(scanner, Integer.class, "quantity");
-        Double price = (Double) updateField(scanner, Double.class, "quantity");
+        Double price = (Double) updateField(scanner, Double.class, "price (double)");
         String name = (String) updateField(scanner, String.class, "name");
         Discount discount = (Discount) updateField(scanner, Discount.class, "discount");
         Boolean is_controlled = (Boolean) updateField(scanner, Boolean.class, "is_controlled");
         String drug_name = (String) updateField(scanner, String.class, "drug name");
-        LocalDateTime expiration_date = (LocalDateTime) updateField(scanner, LocalDateTime.class, "expiration date");
+        LocalDateTime expiration_date =
+                (LocalDateTime) updateField(scanner, LocalDateTime.class, "expiration date");
 
         List<Object> data = new ArrayList<>();
         data.add(id);
@@ -376,13 +377,16 @@ class TUI {
 
         return data;
     }
+
     public static List<Object> updateCustomer(Scanner scanner) {
         tui("Enter customer ID to update:");
         UUID id = UUID.fromString(scanner.nextLine());
 
-        LocalDateTime birthday = (LocalDateTime) updateField(scanner, LocalDateTime.class, "birthday");
+        LocalDateTime birthday =
+                (LocalDateTime) updateField(scanner, LocalDateTime.class, "birthday");
         String name = (String) updateField(scanner, String.class, "name");
-        LocalDateTime last_access = (LocalDateTime) updateField(scanner, LocalDateTime.class, "last access");
+        LocalDateTime last_access =
+                (LocalDateTime) updateField(scanner, LocalDateTime.class, "last access");
 
         List<Object> data = new ArrayList<>();
         data.add(id);
@@ -392,15 +396,55 @@ class TUI {
 
         return data;
     }
+
     public static List<Object> updateOrder(Scanner scanner) {
         tui("Enter order ID to update:");
         UUID id = UUID.fromString(scanner.nextLine());
 
-        LocalDateTime shipment_date = (LocalDateTime) updateField(scanner, LocalDateTime.class, "shipment date");
+        LocalDateTime shipment_date =
+                (LocalDateTime) updateField(scanner, LocalDateTime.class, "shipment date");
 
         List<Object> data = new ArrayList<>();
         data.add(id);
         data.add(shipment_date);
+
+        return data;
+    }
+
+    public static List<Object> purchaseStock(Scanner scanner) {
+        List<Object> data = new ArrayList<>();
+
+        tui("Enter customer ID:");
+        data.add(UUID.fromString(scanner.nextLine()));
+
+        tui("Enter the amount of items in the order:");
+        int items = scanner.nextInt();
+        scanner.nextLine();
+        data.add(items);
+
+        List<UUID> barcodes = new ArrayList<>();
+        List<Integer> quantities = new ArrayList<>();
+        for (int i = 0; i < items; i++) {
+            tui("Enter item barcode (ID):");
+            barcodes.add(UUID.fromString(scanner.nextLine()));
+            tui("Enter the amount to purchase:");
+            quantities.add(Integer.valueOf(scanner.nextInt()));
+            scanner.nextLine();
+        }
+        data.add(barcodes);
+        data.add(quantities);
+
+        return data;
+    }
+
+    public static List<Object> pickupPrescription(Scanner scanner) {
+        List<Object> data = new ArrayList<>();
+
+        tui("Enter customer ID:");
+        data.add(UUID.fromString(scanner.nextLine()));
+
+        tui("Enter prescription ID:");
+        data.add(UUID.fromString(scanner.nextLine()));
 
         return data;
     }
@@ -490,10 +534,16 @@ public class Main {
                 return TUI.updateAccount(scanner);
             case UpdateStock:
                 return TUI.updateStock(scanner);
+            case UpdateDrug:
+                return TUI.updateDrug(scanner);
             case UpdateCustomer:
                 return TUI.updateCustomer(scanner);
             case UpdateOrder:
                 return TUI.updateOrder(scanner);
+            case PurchaseStock:
+                return TUI.purchaseStock(scanner);
+            case PickupPrescription:
+                return TUI.pickupPrescription(scanner);
         }
 
         Log.error("Invalid request data.");

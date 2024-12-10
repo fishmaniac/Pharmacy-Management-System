@@ -40,6 +40,7 @@ public class Backend {
     }
 
     public void update() {
+        // TODO: Remove items with 0 quantity
         this.inventory.updateAutoOrders();
         this.inventory.updateDeliveries();
         sendNotification(this.inventory.updateExpired());
@@ -225,6 +226,7 @@ public class Backend {
 
         return Response.Ok;
     }
+
     public Response updateStock(final List<Object> data) {
         UUID id = (UUID) data.get(0);
         Stock stock = this.inventory.findStock(id);
@@ -251,9 +253,16 @@ public class Backend {
 
         return Response.Ok;
     }
+
     public Response updateDrug(final List<Object> data) {
         UUID id = (UUID) data.get(0);
-        Drug drug = (Drug) this.inventory.findStock(id);
+        Stock stock = this.inventory.findStock(id);
+        if (!(stock instanceof Drug)) {
+            Log.error("Invalid item type, expected Drug, got Stock.");
+            return Response.BadRequest;
+        }
+
+        Drug drug = (Drug) stock;
         if (drug == null) {
             Log.error("Invalid stock ID.");
             return Response.BadRequest;
@@ -288,6 +297,7 @@ public class Backend {
 
         return Response.Ok;
     }
+
     public Response updateCustomer(final List<Object> data) {
         UUID id = (UUID) data.get(0);
         Customer customer = this.customers.get(id);
@@ -297,28 +307,152 @@ public class Backend {
         }
 
         LocalDateTime birthday = (LocalDateTime) data.get(1);
+        if (birthday != null) customer.setBirthday(birthday);
+
         String name = (String) data.get(2);
+        if (name != null) customer.setName(name);
+
         LocalDateTime last_access = (LocalDateTime) data.get(3);
-        
+        if (last_access != null) customer.setLastAccess(last_access);
+
         return Response.Ok;
     }
+
     public Response updateOrder(final List<Object> data) {
         UUID id = (UUID) data.get(0);
         Order order = this.inventory.getOrders().get(id);
         if (order == null) {
             Log.error("Invalid order ID.");
             return Response.BadRequest;
-        };
+        }
+        ;
 
         LocalDateTime shipment_date = (LocalDateTime) data.get(1);
         if (shipment_date != null) order.setShipmentDate(shipment_date);
 
         return Response.Ok;
     }
-    public Response updateAutoOrder(final List<Object> data) {
+
+    /**
+     * Input two arrays of the same size.
+     * @param barcodes
+     * @param quantities
+     */
+    private void purchaseItems(List<UUID> barcodes, List<Integer> quantities) {
+        List<Stock> order_items = new ArrayList<Stock>();
+
+        for (int i = 0; i < barcodes.size(); i++) {
+            UUID item_id = (UUID) barcodes.get(i);
+            Stock stock = this.inventory.findStock(item_id);
+
+            if (stock == null) {
+                Log.error("Invalid stock ID: " + item_id);
+                continue;
+            }
+
+            int purchase_quantity = (int) quantities.get(i);
+            int stock_quantity = stock.getQuantity();
+            if (stock_quantity < purchase_quantity) {
+                Log.error("Not enough items in stock for: " + stock);
+                continue;
+            }
+
+            if (stock instanceof Drug) {
+                Drug drug = (Drug) stock;
+                if (drug.getExpirationDate().isAfter(LocalDateTime.now())) {
+                    Log.tui("The purchase item is expired: " + drug);
+                }
+            }
+
+            stock.setQuantity(stock_quantity - purchase_quantity);
+            order_items.add(stock);
+        }
+
+        if (order_items.size() == 0) {
+            Log.error("No items were able to be purchased.");
+        }
+
+        for (Stock item : order_items) {
+            int purchase_quantity = item.getQuantity();
+            int item_quantity = this.inventory.getStock().get(item.getID()).getQuantity();
+            Log.audit("Customer purchasing new item: " + item);
+            Stock inventory_item = this.inventory.getStock().get(item.getID());
+            if (item_quantity < purchase_quantity) {
+                Log.error("Not enough items in stock for: " + inventory_item);
+                continue;
+            }
+            inventory_item.setQuantity(item_quantity - purchase_quantity);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public Response purchaseStock(final List<Object> data) {
+        UUID customer_id = (UUID) data.get(0);
+        Customer customer = this.customers.get(customer_id);
+        if (customer == null) {
+            Log.error("Invalid customer ID.");
+        }
+
+        int items = (int) data.get(1);
+
+        List<UUID> barcodes = (List<UUID>) data.get(2);
+        List<Integer> quantities = (List<Integer>) data.get(3);
+
+        List<Stock> order_items = new ArrayList<Stock>();
+
+        purchaseItems(barcodes, quantities);
+
         return Response.Ok;
     }
 
+    public Response pickupPrescription(final List<Object> data) {
+        UUID customer_id = (UUID) data.get(0);
+        Customer customer = this.customers.get(customer_id);
+        if (!(customer instanceof Patient)) {
+            Log.error("Only patient's can have prescriptions.");
+            return Response.BadRequest;
+        }
+
+        Patient patient = (Patient) customer;
+        if (patient == null) {
+            Log.error("Invalid customer ID.");
+            return Response.BadRequest;
+        }
+
+        UUID prescription_id = (UUID) data.get(1);
+        Prescription order_prescription = null;
+        for (Prescription prescription : patient.getPrescriptions()) {
+            if (prescription.getID().equals(prescription_id)) {
+                order_prescription = prescription;
+                break;
+            }
+        }
+        if (order_prescription == null) {
+            Log.error("Invalid prescription ID.");
+            return Response.BadRequest;
+        } else if (order_prescription != null
+                && Duration.between(order_prescription.getLastFillTime(), LocalDateTime.now())
+                                .compareTo(order_prescription.getRefillDuration())
+                        < 0) {
+            Log.error("Prescription is not ready to be filled.");
+            return Response.BadRequest;
+        }
+
+        Log.audit("Filling prescription: " + order_prescription);
+
+        List<UUID> barcodes = new ArrayList<>();
+        List<Integer> quantities = new ArrayList<>();
+        for (Stock stock : order_prescription.getItems()) {
+            barcodes.add(stock.getID());
+            quantities.add(stock.getQuantity());
+        }
+
+        purchaseItems(barcodes, quantities);
+
+        order_prescription.setLastFillTime(LocalDateTime.now());
+
+        return Response.Ok;
+    }
 
     /**
      * @param login
@@ -416,6 +550,8 @@ public class Backend {
     }
 }
 
+// TODO: Handle refill date tracking
+// TODO: Record history when prescriptions dispensed?
 class Prescription {
     // Data Members
     private UUID id;
@@ -432,6 +568,10 @@ class Prescription {
     }
 
     // Getters/Setters
+    public UUID getID() {
+        return this.id;
+    }
+
     public List<Stock> getItems() {
         return items;
     }
@@ -680,6 +820,7 @@ class Account {
 
     public void setLogin(final String login) {
         this.login = UUID.nameUUIDFromBytes(login.getBytes());
+        this.id = this.login;
     }
 
     public UUID getPassword() {

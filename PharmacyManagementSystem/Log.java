@@ -1,5 +1,6 @@
 package PharmacyManagementSystem;
 
+import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
 enum Level {
@@ -76,6 +77,8 @@ public class Log {
                 return "[ERROR] ";
             case TUI:
                 return "[TUI] ";
+            case Audit:
+                return LocalDateTime.now() + " - [AUDIT] ";
             default:
                 throw new IllegalArgumentException("Invalid levelPrefix log level: " + log_level);
         }

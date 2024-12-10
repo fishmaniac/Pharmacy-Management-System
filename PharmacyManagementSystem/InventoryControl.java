@@ -382,8 +382,13 @@ class Stock implements Cloneable {
                 + this.getName()
                 + "]";
     }
+
     private void createID() {
+        InventoryControl inventory = Backend.get().inventory;
+        Stock stock = (Stock) inventory.getStock().remove(this.id);
+
         this.id = UUID.nameUUIDFromBytes(name.getBytes());
+        if (stock != null) inventory.addStock(stock);
     }
 }
 
@@ -455,16 +460,19 @@ class Drug extends Stock {
     public String toString() {
         return super.toString()
                 + "-[Controlled: "
-                + this.is_controlled
+                + this.getIsControlled()
                 + ", Drug Name: "
-                + this.drug_name
+                + this.getDrugName()
                 + ", Expiration Date: "
-                + this.expiration_date
+                + this.getExpirationDate()
                 + "]";
     }
 
     private void createID() {
+        InventoryControl inventory = Backend.get().inventory;
+        Drug drug = (Drug) inventory.getStock().remove(this.id);
         this.id = UUID.nameUUIDFromBytes((name + drug_name + expiration_date).getBytes());
+        if (drug != null) inventory.addStock(drug);
     }
 }
 
