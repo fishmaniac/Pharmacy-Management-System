@@ -1,5 +1,8 @@
 package PharmacyManagementSystem;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
@@ -15,6 +18,28 @@ enum Level {
 
 public class Log {
     public static final Level LOG_LEVEL = Level.Trace;
+    private static LocalDate log_date;
+    private static FileWriter writer;
+    private static File file;
+
+    public static void init() {
+        try {
+            log_date = LocalDate.now();
+            file = new File(log_date + "ActivityLog.log");
+            file.createNewFile();
+            writer = new FileWriter(file, true);
+        } catch (Exception e) {
+            Log.error("Exception in logger init: " + e);
+        }
+    }
+
+    public static void clean() {
+        try {
+            writer.close();
+        } catch (Exception e) {
+            Log.error("Exception in logger clean: " + e);
+        }
+    }
 
     public static void logStack() {
         System.out.println(levelPrefix(Level.Trace) + "Stack Trace: " + getCaller());
@@ -45,11 +70,41 @@ public class Log {
     }
 
     public static void audit(String message) {
-        log(Level.Audit, true, message + " - " + LocalDateTime.now() + " - Initiated by user: " + Backend.get().getLoggedIn());
+        String text =
+                message
+                        + " - "
+                        + LocalDateTime.now()
+                        + " - Initiated by user: "
+                        + Backend.get().getLoggedIn();
+        writeFile(text);
+        log(Level.Audit, true, text);
     }
 
     public static void auditAnonymous(String message) {
         log(Level.Audit, true, message);
+    }
+
+    private static void checkDate() {
+        try {
+            if (!log_date.equals(LocalDate.now())) {
+                writer.close();
+                log_date = LocalDate.now();
+                file = new File(log_date + "ActivityLog.log");
+                file.createNewFile();
+                writer = new FileWriter(file, true);
+            }
+        } catch (Exception e) {
+            Log.error("Exception in logger checkDate: " + e);
+        }
+    }
+
+    private static void writeFile(String message) {
+        try {
+            writer.write(message + "\n");
+            checkDate();
+        } catch (Exception e) {
+            Log.error("Exception in logger writeFile: " + e);
+        }
     }
 
     private static void log(Level log_level, boolean show_level, String message) {
