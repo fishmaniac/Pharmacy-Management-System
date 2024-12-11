@@ -17,7 +17,6 @@ class TUI {
     }
 
     private static LocalDateTime date(Scanner scanner) {
-        String date;
         tui("Enter year (yyyy):");
         int year = scanner.nextInt();
         scanner.nextLine();
@@ -242,7 +241,7 @@ class TUI {
     }
 
     public static String removeStock(Scanner scanner) {
-        tui("Enter drug ID to remove:");
+        tui("Enter stock ID to remove:");
         return scanner.nextLine();
     }
 
@@ -420,7 +419,6 @@ class TUI {
         tui("Enter the amount of items in the order:");
         int items = scanner.nextInt();
         scanner.nextLine();
-        data.add(items);
 
         List<UUID> barcodes = new ArrayList<>();
         List<Integer> quantities = new ArrayList<>();
@@ -456,7 +454,7 @@ public class Main {
     }
 
     private static void requests() {
-        tui("\nInvoke a request to the backend...");
+        tui("\tInvoke a request to the backend...");
         tui("\t-1: quit");
         for (Request request : Request.values()) {
             tui("\t" + request.ordinal() + ": " + request);
@@ -599,8 +597,11 @@ public class Main {
         Log.trace("DATA: " + data);
 
         Response response = api.receive(request, data);
+        Log.audit("Request " + request + " made with data: " + data);
 
         data = responseData(scanner, response);
+        Log.audit("Response " + response + " received with data: " + data);
+
         api.send(response, data);
     }
 

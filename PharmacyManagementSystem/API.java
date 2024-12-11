@@ -71,7 +71,6 @@ public class API {
             case CreateStock:
                 if (!backend.auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;
                 backend.inventory.addStock((Stock) data);
-
                 return Response.Ok;
             case CreateDiscount:
                 if (!backend.auth(PermissionLevel.PharmacyManager)) return Response.Forbidden;

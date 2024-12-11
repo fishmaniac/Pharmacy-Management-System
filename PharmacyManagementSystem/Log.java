@@ -41,14 +41,18 @@ public class Log {
     }
 
     public static void tui(String message) {
-        log(Level.TUI, false, message);
+        log(Level.TUI, false, "\t" + message);
     }
 
     public static void audit(String message) {
-        log(Level.Audit, false, message);
+        log(Level.Audit, true, message + " - " + LocalDateTime.now() + " - Initiated by user: " + Backend.get().getLoggedIn());
     }
 
-    public static void log(Level log_level, boolean show_level, String message) {
+    public static void auditAnonymous(String message) {
+        log(Level.Audit, true, message);
+    }
+
+    private static void log(Level log_level, boolean show_level, String message) {
         if (log_level.ordinal() >= LOG_LEVEL.ordinal()) {
             System.out.println((show_level ? levelPrefix(log_level) : "") + message);
         }
@@ -66,19 +70,19 @@ public class Log {
     private static String levelPrefix(Level log_level) {
         switch (log_level) {
             case Trace:
-                return "[TRACE] ";
+                return "[TRACE]\t";
             case Debug:
-                return "[DEBUG] ";
+                return "[DEBUG]\t";
             case Info:
-                return "[INFO] ";
+                return "[INFO]\t";
             case Warning:
-                return "[WARNING] ";
+                return "[WARNING]\t";
             case Error:
-                return "[ERROR] ";
+                return "[ERROR]\t";
             case TUI:
-                return "[TUI] ";
+                return "[TUI]\t";
             case Audit:
-                return LocalDateTime.now() + " - [AUDIT] ";
+                return "[AUDIT]\t";
             default:
                 throw new IllegalArgumentException("Invalid levelPrefix log level: " + log_level);
         }

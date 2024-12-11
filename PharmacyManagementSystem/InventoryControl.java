@@ -9,13 +9,19 @@ import java.util.UUID;
 /** {@link InventoryControl} */
 public class InventoryControl {
     private HashMap<UUID, Stock> stock;
+    private HashMap<UUID, Stock> last_stock;
     private HashMap<UUID, Order> orders;
+    private HashMap<UUID, Stock> last_order_items;
     private List<AutoOrder> auto_orders;
 
+
     public InventoryControl() {
-        this.stock = new HashMap<>();
-        this.orders = new HashMap<>();
+        this.stock = new HashMap<UUID, Stock>();
+        this.last_stock = new HashMap<UUID, Stock>();
+        this.orders = new HashMap<UUID, Order>();
+        this.last_order_items = new HashMap<UUID, Stock>();
         this.auto_orders = new ArrayList<>();
+        Log.auditAnonymous("Inventory Control created.");
     }
 
     // Backend Updates API
@@ -103,6 +109,23 @@ public class InventoryControl {
         this.stock = inventory;
     }
 
+    public HashMap<UUID, Stock> getLastStock() {
+        return this.last_stock;
+    }
+
+    public void setLastStock(HashMap<UUID, Stock> last_stock) {
+        this.last_stock = last_stock;
+    }
+
+    public HashMap<UUID, Stock> getLastOrderItems() {
+        return last_order_items;
+    }
+    public void setLastOrderItems(HashMap<UUID, Stock> last_order_items) {
+        this.last_order_items = last_order_items;
+    }
+
+
+
     public HashMap<UUID, Order> getOrders() {
         return orders;
     }
@@ -123,6 +146,7 @@ public class InventoryControl {
     /**
      * @param item
      */
+    @SuppressWarnings("unchecked")
     public void addStock(final Stock item) {
         Stock stock = this.stock.get(item.getID());
 
@@ -134,8 +158,14 @@ public class InventoryControl {
     /**
      * @param item
      */
+    @SuppressWarnings("unchecked")
     public void removeStock(final Stock item) {
         this.stock.remove(item.id);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Stock removeStock(UUID id) {
+        return this.stock.remove(id);
     }
 
     // Backend Order API
@@ -163,7 +193,13 @@ public class InventoryControl {
     /**
      * @param order
      */
+    @SuppressWarnings("unchecked")
     private void deliverOrder(final Order order) {
+        this.last_stock = (HashMap<UUID, Stock>) this.stock.clone();
+        this.last_order_items.clear();
+        for (Stock item : order.getOrderItems()) {
+            this.last_order_items.put(item.getID(), item);
+        }
         for (final Stock order_stock : order.getOrderItems()) {
             Stock inventory_stock = this.stock.get(order_stock.getID());
             if (inventory_stock == null) {
@@ -227,6 +263,7 @@ class Discount {
     Discount(final double discount, final LocalDateTime expiration) {
         this.discount = discount;
         this.expiration = expiration;
+        Log.audit("Discount created.");
     }
 
     protected boolean isExpired() {
@@ -311,7 +348,8 @@ class Stock implements Cloneable {
         this.discount = discount;
         this.name = name;
         createID();
-    }
+        Log.audit("Stock created: " + this);
+            }
 
     // Getters/Setters
     public UUID getID() {
@@ -362,6 +400,7 @@ class Stock implements Cloneable {
     @Override
     public Stock clone() {
         try {
+            Log.audit("Cloning stock: " + this);
             return (Stock) super.clone();
         } catch (final CloneNotSupportedException e) {
             throw new AssertionError("Clone not supposed for " + this.getClass().getName());
@@ -371,21 +410,21 @@ class Stock implements Cloneable {
     @Override
     public String toString() {
         return "[ID: "
-                + this.getID()
-                + ", Quantity: "
-                + this.getQuantity()
-                + ", Price: "
-                + this.getPrice()
-                + ", Discount: "
-                + this.getDiscount()
-                + ", Name: "
-                + this.getName()
-                + "]";
+            + this.getID()
+            + ", Quantity: "
+            + this.getQuantity()
+            + ", Price: "
+            + this.getPrice()
+            + ", Discount: "
+            + this.getDiscount()
+            + ", Name: "
+            + this.getName()
+            + "]";
     }
 
     private void createID() {
         InventoryControl inventory = Backend.get().inventory;
-        Stock stock = (Stock) inventory.getStock().remove(this.id);
+        Stock stock = (Stock) inventory.removeStock(this.id);
 
         this.id = UUID.nameUUIDFromBytes(name.getBytes());
         if (stock != null) inventory.addStock(stock);
@@ -421,7 +460,7 @@ class Drug extends Stock {
         this.drug_name = drug_name;
         this.expiration_date = expiration_date;
         createID();
-    }
+            }
 
     // Getters/Setters
     public boolean getIsControlled() {
@@ -459,18 +498,18 @@ class Drug extends Stock {
     @Override
     public String toString() {
         return super.toString()
-                + "-[Controlled: "
-                + this.getIsControlled()
-                + ", Drug Name: "
-                + this.getDrugName()
-                + ", Expiration Date: "
-                + this.getExpirationDate()
-                + "]";
+            + "-[Controlled: "
+            + this.getIsControlled()
+            + ", Drug Name: "
+            + this.getDrugName()
+            + ", Expiration Date: "
+            + this.getExpirationDate()
+            + "]";
     }
 
     private void createID() {
         InventoryControl inventory = Backend.get().inventory;
-        Drug drug = (Drug) inventory.getStock().remove(this.id);
+        Drug drug = (Drug) inventory.removeStock(this.id);
         this.id = UUID.nameUUIDFromBytes((name + drug_name + expiration_date).getBytes());
         if (drug != null) inventory.addStock(drug);
     }
@@ -490,6 +529,7 @@ class Order {
         this.order_id = UUID.randomUUID();
         this.order_items = order_items;
         this.shipment_date = Config.orderDeliveryTime();
+        Log.audit("Order created: " + this);
     }
 
     /**
@@ -502,6 +542,7 @@ class Order {
         final List<Stock> order_items = new ArrayList<>();
         order_items.add(order_item);
         this.order_items = order_items;
+        Log.audit("Order created: " + this);
     }
 
     // Getters/Setters
@@ -529,11 +570,11 @@ class Order {
     @Override
     public String toString() {
         return "Order ID: "
-                + this.order_id
-                + ", Shipment Date: "
-                + this.shipment_date
-                + ", Items: "
-                + this.order_items;
+            + this.order_id
+            + ", Shipment Date: "
+            + this.shipment_date
+            + ", Items: "
+            + this.order_items;
     }
 }
 
@@ -548,6 +589,7 @@ class AutoOrder {
         this.id = UUID.randomUUID();
         this.quantities = quantities;
         this.order = order;
+        Log.audit("Auto order created: " + this);
     }
 
     public UUID getID() {
@@ -572,6 +614,12 @@ class AutoOrder {
 
     @Override
     public String toString() {
-        return "ID: " + this.id + ", Quantities: " + this.quantities + ", Items: " + this.order;
+        return "[ID: " 
+            + this.id
+            + ", Quantities: "
+            + this.quantities
+            + ", Items: "
+            + this.order
+            + "]";
     }
 }
