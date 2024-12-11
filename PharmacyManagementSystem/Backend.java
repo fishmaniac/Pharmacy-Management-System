@@ -46,11 +46,11 @@ public class Backend {
     }
 
     public void update() {
-        // TODO: Remove items with 0 quantity
         this.inventory.updateAutoOrders();
         this.inventory.updateDeliveries();
         sendNotification(this.inventory.updateExpired());
         updateCustomers();
+        this.inventory.updateNoQuantity();
         updateDiscrepancies();
     }
 
@@ -406,6 +406,8 @@ public class Backend {
             return Response.BadRequest;
         }
 
+        customer.setLastAccessNow();
+
         List<UUID> barcodes = (List<UUID>) data.get(1);
         List<Integer> quantities = (List<Integer>) data.get(2);
 
@@ -421,6 +423,8 @@ public class Backend {
             Log.error("Invalid customer ID.");
             return Response.BadRequest;
         }
+
+        customer.setLastAccessNow();
 
         if (!(customer instanceof Patient)) {
             Log.error("Only patient's can have prescriptions.");
@@ -730,7 +734,6 @@ class Customer {
         this.last_access = time;
     }
 
-    // TODO: Update whenever a purchase is made
     public void setLastAccessNow() {
         this.last_access = LocalDateTime.now();
     }
