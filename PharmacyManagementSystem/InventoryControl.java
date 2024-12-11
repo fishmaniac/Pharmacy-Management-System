@@ -14,7 +14,6 @@ public class InventoryControl {
     private HashMap<UUID, Stock> last_order_items;
     private List<AutoOrder> auto_orders;
 
-
     public InventoryControl() {
         this.stock = new HashMap<UUID, Stock>();
         this.last_stock = new HashMap<UUID, Stock>();
@@ -120,11 +119,10 @@ public class InventoryControl {
     public HashMap<UUID, Stock> getLastOrderItems() {
         return last_order_items;
     }
+
     public void setLastOrderItems(HashMap<UUID, Stock> last_order_items) {
         this.last_order_items = last_order_items;
     }
-
-
 
     public HashMap<UUID, Order> getOrders() {
         return orders;
@@ -349,7 +347,7 @@ class Stock implements Cloneable {
         this.name = name;
         createID();
         Log.audit("Stock created: " + this);
-            }
+    }
 
     // Getters/Setters
     public UUID getID() {
@@ -410,16 +408,16 @@ class Stock implements Cloneable {
     @Override
     public String toString() {
         return "[ID: "
-            + this.getID()
-            + ", Quantity: "
-            + this.getQuantity()
-            + ", Price: "
-            + this.getPrice()
-            + ", Discount: "
-            + this.getDiscount()
-            + ", Name: "
-            + this.getName()
-            + "]";
+                + this.getID()
+                + ", Quantity: "
+                + this.getQuantity()
+                + ", Price: "
+                + this.getPrice()
+                + ", Discount: "
+                + this.getDiscount()
+                + ", Name: "
+                + this.getName()
+                + "]";
     }
 
     private void createID() {
@@ -460,7 +458,7 @@ class Drug extends Stock {
         this.drug_name = drug_name;
         this.expiration_date = expiration_date;
         createID();
-            }
+    }
 
     // Getters/Setters
     public boolean getIsControlled() {
@@ -498,13 +496,13 @@ class Drug extends Stock {
     @Override
     public String toString() {
         return super.toString()
-            + "-[Controlled: "
-            + this.getIsControlled()
-            + ", Drug Name: "
-            + this.getDrugName()
-            + ", Expiration Date: "
-            + this.getExpirationDate()
-            + "]";
+                + "-[Controlled: "
+                + this.getIsControlled()
+                + ", Drug Name: "
+                + this.getDrugName()
+                + ", Expiration Date: "
+                + this.getExpirationDate()
+                + "]";
     }
 
     private void createID() {
@@ -569,17 +567,19 @@ class Order {
     // Override Methods
     @Override
     public String toString() {
-        return "Order ID: "
-            + this.order_id
-            + ", Shipment Date: "
-            + this.shipment_date
-            + ", Items: "
-            + this.order_items;
+        return "[Order ID: "
+                + this.order_id
+                + ", Shipment Date: "
+                + this.shipment_date
+                + ", Items: "
+                + this.order_items
+                + "]";
     }
 }
 
 record MinStock(int minimum_quantity, int order_quantity) {}
 
+// Restock request
 class AutoOrder {
     private UUID id;
     private HashMap<UUID, MinStock> quantities;
@@ -614,12 +614,12 @@ class AutoOrder {
 
     @Override
     public String toString() {
-        return "[ID: " 
-            + this.id
-            + ", Quantities: "
-            + this.quantities
-            + ", Items: "
-            + this.order
-            + "]";
+        return "[ID: "
+                + this.id
+                + ", Quantities: "
+                + this.quantities
+                + ", Items: "
+                + this.order
+                + "]";
     }
 }

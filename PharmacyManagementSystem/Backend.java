@@ -77,7 +77,7 @@ public class Backend {
             setLoggingIn(null);
             this.logged_in.setFailureAttempts(0);
 
-            Log.info(
+            Log.tui(
                     "Welcome "
                             + this.logged_in.getName()
                             + ". You are "
@@ -342,6 +342,7 @@ public class Backend {
 
     /**
      * Input two arrays of the same size.
+     *
      * @param barcodes
      * @param quantities
      */
@@ -405,8 +406,8 @@ public class Backend {
             return Response.BadRequest;
         }
 
-        List<UUID> barcodes = (List<UUID>) data.get(2);
-        List<Integer> quantities = (List<Integer>) data.get(3);
+        List<UUID> barcodes = (List<UUID>) data.get(1);
+        List<Integer> quantities = (List<Integer>) data.get(2);
 
         purchaseItems(barcodes, quantities);
 
@@ -504,6 +505,7 @@ public class Backend {
             sendNotification(notification);
         }
     }
+
     private boolean isUniqueNotification(Account account, Notification new_notification) {
         for (Notification notification : account.getNotifications()) {
             if (notification.equals(new_notification)) {
@@ -514,18 +516,17 @@ public class Backend {
     }
 
     private void sendNotification(Notification new_notification) {
+        if (this.getLoggedIn() == null) return;
         if (new_notification == null) return;
         for (UUID key : this.accounts.keySet()) {
             Account account = accounts.get(key);
-            if (account.getPermissions().compareTo(
-                new_notification.permission()
-            ) >= 0) {
+            if (account == null) continue;
+            if (account.getPermissions().compareTo(new_notification.permission()) >= 0) {
                 if (!isUniqueNotification(account, new_notification)) continue;
                 account.addNotification(new_notification);
-                if (this.getLoggedIn().getPermissions().compareTo(
-                    new_notification.permission()
-                ) >= 0) {
-                    Log.tui("Notification:" + new_notification);
+                if (this.getLoggedIn().getPermissions().compareTo(new_notification.permission())
+                        >= 0) {
+                    Log.tui("Notification:" + new_notification.notification());
                 }
             }
         }
@@ -545,11 +546,10 @@ public class Backend {
         Stock last_order_item = this.inventory.getLastOrderItems().get(id);
 
         if (stock != null && last_stock == null && last_order_item == null) {
-            String text = "Stock discrepency detected, item was not ordered: " + stock;
+            String text = "Stock discrepancy detected, item was not ordered: " + stock;
             Log.audit(text);
             sendNotification(new Notification(PermissionLevel.PharmacyManager, text));
-        }
-        else if (last_order_item != null) {
+        } else if (last_order_item != null) {
             this.inventory.getLastOrderItems().remove(id);
         }
     }
@@ -561,12 +561,11 @@ public class Backend {
         Stock last_purchase = i == -1 ? null : this.last_purchase.get(i);
 
         if (stock == null && last_stock != null && last_purchase == null) {
-             String text = "Stock discrepency detected, item was not purchased: " + last_stock;
-             Log.audit(text);
-             sendNotification(new Notification(PermissionLevel.PharmacyManager, text));
-             this.inventory.getLastStock().remove(id);
-        }
-        else if (last_purchase != null) {
+            String text = "Stock discrepancy detected, item was not purchased: " + last_stock;
+            Log.audit(text);
+            sendNotification(new Notification(PermissionLevel.PharmacyManager, text));
+            this.inventory.getLastStock().remove(id);
+        } else if (last_purchase != null) {
             this.last_purchase.remove(i);
         }
     }
@@ -621,8 +620,6 @@ public class Backend {
     }
 }
 
-// TODO: Handle refill date tracking
-// TODO: Record history when prescriptions dispensed?
 class Prescription {
     // Data Members
     private UUID id;
@@ -666,18 +663,19 @@ class Prescription {
     public void setRefillDuration(final Duration refill_duration) {
         this.refill_duration = refill_duration;
     }
+
     @Override
     public String toString() {
-        return "ID: "
-            + this.id
-            + ", Items: "
-            + this.items
-            + ", Last Fill Time: "
-            + this.last_fill_time
-            + ", Refill Duration: "
-            + this.refill_duration;
+        return "[ID: "
+                + this.id
+                + ", Items: "
+                + this.items
+                + ", Last Fill Time: "
+                + this.last_fill_time
+                + ", Refill Duration: "
+                + this.refill_duration
+                + "]";
     }
-
 }
 
 enum CustomerType {
@@ -739,14 +737,15 @@ class Customer {
 
     @Override
     public String toString() {
-        return "ID: "
-            + this.getID()
-            + ", Birthday: "
-            + this.getBirthday()
-            + ", Name: "
-            + this.getName()
-            + ", Last access: "
-            + this.getLastAccess();
+        return "[ID: "
+                + this.getID()
+                + ", Birthday: "
+                + this.getBirthday()
+                + ", Name: "
+                + this.getName()
+                + ", Last access: "
+                + this.getLastAccess()
+                + "]";
     }
 }
 
@@ -777,7 +776,12 @@ class Patient extends Customer {
 
     @Override
     public String toString() {
-        return super.toString() + ", Prescriptions: " + this.getPrescriptions();
+        return super.toString()
+                + "-[Prescriptions: "
+                + this.getPrescriptions()
+                + ", History: "
+                + this.prescription_history
+                + "]";
     }
 }
 
@@ -826,11 +830,11 @@ class Purchase {
     @Override
     public String toString() {
         return "ID: "
-            + this.id
-            + ", Purchase date: "
-            + this.purchase_date
-            + ", Items: "
-            + this.items;
+                + this.id
+                + ", Purchase date: "
+                + this.purchase_date
+                + ", Items: "
+                + this.items;
     }
 }
 
@@ -880,7 +884,7 @@ class Account {
         this.password = null;
         this.first_login = true;
         Log.audit("Account created: " + this);
-            }
+    }
 
     Account(
             final LocalDateTime birthday,
@@ -900,7 +904,7 @@ class Account {
         if (log) {
             Log.audit("Account created: " + this);
         }
-            }
+    }
 
     // Getters/Setters
     public UUID getID() {
@@ -1008,15 +1012,15 @@ class Account {
     @Override
     public String toString() {
         return "[ID: "
-            + this.id
-            + ", Birthday: "
-            + this.birthday
-            + ", Name: "
-            + this.name
-            + ", Login: "
-            + this.login
-            + ", Permissions: "
-            + this.permissions
-            + "]";
+                + this.id
+                + ", Birthday: "
+                + this.birthday
+                + ", Name: "
+                + this.name
+                + ", Login: "
+                + this.login
+                + ", Permissions: "
+                + this.permissions
+                + "]";
     }
 }
