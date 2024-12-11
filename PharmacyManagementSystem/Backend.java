@@ -6,7 +6,9 @@ import java.time.LocalDateTime;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -15,11 +17,13 @@ import java.util.UUID;
  * instance.
  */
 public class Backend {
-    private static Backend backend;
     public InventoryControl inventory;
-    private HashMap<UUID, Account> accounts;
 
+    private static Backend backend;
+
+    private HashMap<UUID, Account> accounts;
     private HashMap<UUID, Customer> customers;
+    private List<Stock> last_purchase;
 
     private Account logging_in;
     private Account logged_in;
@@ -28,6 +32,8 @@ public class Backend {
         this.inventory = new InventoryControl();
         this.accounts = new HashMap<UUID, Account>();
         this.customers = new HashMap<UUID, Customer>();
+        this.last_purchase = new ArrayList<Stock>();
+        Log.auditAnonymous("Backend initialized.");
 
         initAdmin();
     }
@@ -45,6 +51,7 @@ public class Backend {
         this.inventory.updateDeliveries();
         sendNotification(this.inventory.updateExpired());
         updateCustomers();
+        updateDiscrepancies();
     }
 
     public HashMap<UUID, Account> getAccounts() {
@@ -360,7 +367,9 @@ public class Backend {
             if (stock instanceof Drug) {
                 Drug drug = (Drug) stock;
                 if (drug.getExpirationDate().isAfter(LocalDateTime.now())) {
-                    Log.tui("The purchase item is expired: " + drug);
+                    String text = "The purchase item is expired: " + drug;
+                    Log.tui(text);
+                    sendNotification(new Notification(PermissionLevel.Cashier, text));
                 }
             }
 
@@ -372,16 +381,18 @@ public class Backend {
             Log.error("No items were able to be purchased.");
         }
 
+        this.last_purchase.clear();
         for (Stock item : order_items) {
             int purchase_quantity = item.getQuantity();
             int item_quantity = this.inventory.getStock().get(item.getID()).getQuantity();
             Log.audit("Customer purchasing new item: " + item);
             Stock inventory_item = this.inventory.getStock().get(item.getID());
-            if (item_quantity < purchase_quantity) {
+            if (inventory_item == null || item_quantity < purchase_quantity) {
                 Log.error("Not enough items in stock for: " + inventory_item);
                 continue;
             }
             inventory_item.setQuantity(item_quantity - purchase_quantity);
+            this.last_purchase.add(inventory_item);
         }
     }
 
@@ -391,14 +402,11 @@ public class Backend {
         Customer customer = this.customers.get(customer_id);
         if (customer == null) {
             Log.error("Invalid customer ID.");
+            return Response.BadRequest;
         }
-
-        int items = (int) data.get(1);
 
         List<UUID> barcodes = (List<UUID>) data.get(2);
         List<Integer> quantities = (List<Integer>) data.get(3);
-
-        List<Stock> order_items = new ArrayList<Stock>();
 
         purchaseItems(barcodes, quantities);
 
@@ -408,6 +416,11 @@ public class Backend {
     public Response pickupPrescription(final List<Object> data) {
         UUID customer_id = (UUID) data.get(0);
         Customer customer = this.customers.get(customer_id);
+        if (customer == null) {
+            Log.error("Invalid customer ID.");
+            return Response.BadRequest;
+        }
+
         if (!(customer instanceof Patient)) {
             Log.error("Only patient's can have prescriptions.");
             return Response.BadRequest;
@@ -491,16 +504,29 @@ public class Backend {
             sendNotification(notification);
         }
     }
+    private boolean isUniqueNotification(Account account, Notification new_notification) {
+        for (Notification notification : account.getNotifications()) {
+            if (notification.equals(new_notification)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     private void sendNotification(Notification new_notification) {
         if (new_notification == null) return;
         for (UUID key : this.accounts.keySet()) {
             Account account = accounts.get(key);
-            if (account.getPermissions().compareTo(new_notification.permission()) >= 0) {
-                for (Notification notification : account.getNotifications()) {
-                    if (notification.equals(new_notification)) return;
-                }
+            if (account.getPermissions().compareTo(
+                new_notification.permission()
+            ) >= 0) {
+                if (!isUniqueNotification(account, new_notification)) continue;
                 account.addNotification(new_notification);
+                if (this.getLoggedIn().getPermissions().compareTo(
+                    new_notification.permission()
+                ) >= 0) {
+                    Log.tui("Notification:" + new_notification);
+                }
             }
         }
     }
@@ -510,6 +536,51 @@ public class Backend {
             if (this.customers.get(id).last_access.isBefore(Config.lastCustomerAccessTimeout())) {
                 this.customers.remove(id);
             }
+        }
+    }
+
+    private void discrepancyNotOrdered(UUID id) {
+        Stock stock = this.inventory.findStock(id);
+        Stock last_stock = this.inventory.getLastStock().get(id);
+        Stock last_order_item = this.inventory.getLastOrderItems().get(id);
+
+        if (stock != null && last_stock == null && last_order_item == null) {
+            String text = "Stock discrepency detected, item was not ordered: " + stock;
+            Log.audit(text);
+            sendNotification(new Notification(PermissionLevel.PharmacyManager, text));
+        }
+        else if (last_order_item != null) {
+            this.inventory.getLastOrderItems().remove(id);
+        }
+    }
+
+    private void discrepancyNotPurchased(UUID id) {
+        Stock stock = this.inventory.findStock(id);
+        Stock last_stock = this.inventory.getLastStock().get(id);
+        int i = this.last_purchase.indexOf(id);
+        Stock last_purchase = i == -1 ? null : this.last_purchase.get(i);
+
+        if (stock == null && last_stock != null && last_purchase == null) {
+             String text = "Stock discrepency detected, item was not purchased: " + last_stock;
+             Log.audit(text);
+             sendNotification(new Notification(PermissionLevel.PharmacyManager, text));
+             this.inventory.getLastStock().remove(id);
+        }
+        else if (last_purchase != null) {
+            this.last_purchase.remove(i);
+        }
+    }
+
+    public void updateDiscrepancies() {
+        Set<UUID> keys = new HashSet<UUID>(this.inventory.getLastStock().keySet());
+        keys.addAll(this.inventory.getStock().keySet());
+        keys.addAll(this.inventory.getLastOrderItems().keySet());
+
+        for (UUID id : keys) {
+            discrepancyNotOrdered(id);
+            discrepancyNotPurchased(id);
+            Stock current = this.inventory.findStock(id);
+            if (current != null) this.inventory.getLastStock().put(id, current);
         }
     }
 
@@ -595,6 +666,18 @@ class Prescription {
     public void setRefillDuration(final Duration refill_duration) {
         this.refill_duration = refill_duration;
     }
+    @Override
+    public String toString() {
+        return "ID: "
+            + this.id
+            + ", Items: "
+            + this.items
+            + ", Last Fill Time: "
+            + this.last_fill_time
+            + ", Refill Duration: "
+            + this.refill_duration;
+    }
+
 }
 
 enum CustomerType {
@@ -657,13 +740,13 @@ class Customer {
     @Override
     public String toString() {
         return "ID: "
-                + this.getID()
-                + ", Birthday: "
-                + this.getBirthday()
-                + ", Name: "
-                + this.getName()
-                + ", Last access: "
-                + this.getLastAccess();
+            + this.getID()
+            + ", Birthday: "
+            + this.getBirthday()
+            + ", Name: "
+            + this.getName()
+            + ", Last access: "
+            + this.getLastAccess();
     }
 }
 
@@ -739,6 +822,16 @@ class Purchase {
     public void setItems(final List<Stock> items) {
         this.items = items;
     }
+
+    @Override
+    public String toString() {
+        return "ID: "
+            + this.id
+            + ", Purchase date: "
+            + this.purchase_date
+            + ", Items: "
+            + this.items;
+    }
 }
 
 enum PermissionLevel {
@@ -787,7 +880,27 @@ class Account {
         this.password = null;
         this.first_login = true;
         Log.audit("Account created: " + this);
-    }
+            }
+
+    Account(
+            final LocalDateTime birthday,
+            final String name,
+            final String login,
+            final PermissionLevel permissions,
+            final boolean log) {
+        this.birthday = birthday;
+        this.name = name;
+        this.login = UUID.nameUUIDFromBytes(login.getBytes());
+        this.id = this.login;
+        this.permissions = permissions;
+        this.notifications = new ArrayList<Notification>();
+        // Create password on first login
+        this.password = null;
+        this.first_login = true;
+        if (log) {
+            Log.audit("Account created: " + this);
+        }
+            }
 
     // Getters/Setters
     public UUID getID() {
@@ -871,7 +984,6 @@ class Account {
         this.permissions = permissions;
     }
 
-    // TODO: Allow account to pick and clear notification
     public void addNotification(Notification notification) {
         this.notifications.add(notification);
     }
@@ -883,7 +995,7 @@ class Account {
     public void printNotifications() {
         Log.tui("Notifications...");
         for (int i = 0; i < this.notifications.size(); i++) {
-            Log.tui("[" + i + "]: " + this.notifications.get(i));
+            Log.tui("[" + i + "]: " + this.notifications.get(i).notification());
         }
     }
 
@@ -895,15 +1007,16 @@ class Account {
 
     @Override
     public String toString() {
-        return "ID: "
-                + this.id
-                + ", Birthday: "
-                + this.birthday
-                + ", Name: "
-                + this.name
-                + ", Login: "
-                + this.login
-                + ", Permissions: "
-                + this.permissions;
+        return "[ID: "
+            + this.id
+            + ", Birthday: "
+            + this.birthday
+            + ", Name: "
+            + this.name
+            + ", Login: "
+            + this.login
+            + ", Permissions: "
+            + this.permissions
+            + "]";
     }
 }
