@@ -247,8 +247,8 @@ public class Main {
                 int quantity = Integer.parseInt(vals[1]);
                 double price = Double.parseDouble(vals[2]);
                 String name = vals[3];
-                boolean isControlled = Boolean.parseBoolean(vals[5]);
-                String drugName = vals[6];
+                boolean isControlled = Boolean.parseBoolean(vals[4]);
+                String drugName = vals[5];
 
                 Drug drug =
                         new Drug(
@@ -263,8 +263,8 @@ public class Main {
                 list.add(drug);
             }
             Order order = new Order(list);
-            backend.inventory.addOrder(order);
             order.setShipmentDate(LocalDateTime.now());
+            backend.inventory.addOrder(order);
         } catch (Exception e) {
             Log.error("Init csv reader error: " + e);
         }
