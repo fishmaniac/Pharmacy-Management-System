@@ -24,6 +24,18 @@ public class InventoryControl {
     }
 
     // Backend Updates API
+    public void updateNoQuantity() {
+        List<UUID> removals = new ArrayList<>();
+        for (final UUID id : this.stock.keySet()) {
+            if (stock.get(id).getQuantity() == 0) {
+                removals.add(id);
+            }
+        }
+        for (UUID id : removals) {
+            this.stock.remove(id);
+        }
+    }
+
     /** */
     public void updateAutoOrders() {
         for (final AutoOrder auto_order : this.auto_orders) {
@@ -229,7 +241,6 @@ public class InventoryControl {
             }
         }
 
-        // TODO: Update expiration date on new orders
         Log.audit("New unique order: " + new_order);
         addOrder(new_order);
     }
@@ -365,8 +376,6 @@ class Stock implements Cloneable {
     public double getPrice() {
         if (this.discount == null) return this.price;
         else if (this.discount.expiration.isBefore(LocalDateTime.now())) {
-            // TODO: Move this check somewhere else...
-            Log.warning("Discount " + this.discount + " is expired");
             return this.price;
         } else {
             return this.discount.getDiscount(this.price);
